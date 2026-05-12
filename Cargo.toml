@@ -1,12 +1,12 @@
 [package]
-name = "alpine-mmr"
-version = "0.7.0"
+name = "merkleberg"
+version = "0.1.0"
 authors = ["Erica Marigold <hi@devcomp.xyz> ", "Nervos Core Dev <dev@nervos.org>"]
 edition = "2024"
 rust-version = "1.85.0"
 license = "MIT"
-description = "A generalized merkle mountain range implementation"
-repository = "https://github.com/pesde-pkg/alpine-mmr"
+description = "Merkle mountain range library in Rust"
+repository = "https://github.com/pesde-pkg/merkleberg"
 
 [features]
 default = ["std"]

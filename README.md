@@ -1,6 +1,6 @@
-# Merkle mountain range
+# Merkleberg
 
-[![Crates.io](https://img.shields.io/crates/v/alpine-mmr.svg)](https://crates.io/crates/alpine-mmr)
+[![Crates.io](https://img.shields.io/crates/v/merkleberg.svg)](https://crates.io/crates/merkleberg)
 
 A generalized merkle mountain range implementation.
 
