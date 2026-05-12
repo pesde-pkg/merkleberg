@@ -1,12 +1,12 @@
 [package]
-name = "ckb-merkle-mountain-range"
+name = "alpine-mmr"
 version = "0.7.0"
-authors = ["Nervos Core Dev <dev@nervos.org>"]
+authors = ["Erica Marigold <hi@devcomp.xyz> ", "Nervos Core Dev <dev@nervos.org>"]
 edition = "2024"
 rust-version = "1.85.0"
 license = "MIT"
 description = "A generalized merkle mountain range implementation"
-repository = "https://github.com/nervosnetwork/merkle-mountain-range"
+repository = "https://github.com/pesde-pkg/alpine-mmr"
 
 [features]
 default = ["std"]
