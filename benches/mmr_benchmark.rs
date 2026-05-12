@@ -3,8 +3,8 @@ extern crate criterion;
 
 use criterion::{BenchmarkId, Criterion};
 
-use alpine_mmr::{Error, MMR, MMRStoreReadOps, Merge, Result, util::MemStore};
 use bytes::Bytes;
+use merkleberg::{Error, MMR, MMRStoreReadOps, Merge, Result, util::MemStore};
 use rand::{seq::SliceRandom, thread_rng};
 use std::convert::TryFrom;
 
