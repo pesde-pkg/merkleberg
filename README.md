@@ -1,17 +1,18 @@
 # Merkle mountain range
-[![Crates.io](https://img.shields.io/crates/v/ckb-merkle-mountain-range.svg)](https://crates.io/crates/ckb-merkle-mountain-range)
+
+[![Crates.io](https://img.shields.io/crates/v/alpine-mmr.svg)](https://crates.io/crates/alpine-mmr)
 
 A generalized merkle mountain range implementation.
 
 ## Features
 
-* Leaves accumulation
-* Multi leaves merkle proof
-* Accumulate from last leaf's merkle proof
+- Leaves accumulation
+- Multi leaves merkle proof
+- Accumulate from last leaf's merkle proof
 
 ## Construct
 
-``` txt
+```txt
 # An 11 leaves MMR
 
           14
@@ -41,7 +42,7 @@ For example, we insert a leaf to the example MMR:
 
 Example MMR after insertion of a new leaf:
 
-``` txt
+```txt
           14
        /       \
      6          13            21
@@ -69,5 +70,5 @@ We can reconstruct the merkle root from the proofs. Pre-calculating the peak pos
 
 ## References
 
-* [Merkle mountain range](https://github.com/opentimestamps/opentimestamps-server/blob/master/doc/merkle-mountain-range.md)
-* [Grin Doc](https://github.com/mimblewimble/grin/blob/master/doc/mmr.md#structure)
+- [Merkle mountain range](https://github.com/opentimestamps/opentimestamps-server/blob/master/doc/merkle-mountain-range.md)
+- [Grin Doc](https://github.com/mimblewimble/grin/blob/master/doc/mmr.md#structure)
