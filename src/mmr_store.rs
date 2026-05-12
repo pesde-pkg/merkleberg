@@ -23,8 +23,8 @@ impl<Elem, Store> MMRBatch<Elem, Store> {
     }
 }
 
-impl<Elem: Clone, Store: MMRStoreReadOps<Elem>> MMRBatch<Elem, Store> {
-    pub fn get_elem(&self, pos: u64) -> Result<Option<Elem>> {
+impl<Elem: Clone + Send, Store: MMRStoreReadOps<Elem>> MMRBatch<Elem, Store> {
+    pub async fn get_elem(&self, pos: u64) -> Result<Option<Elem>> {
         for (start_pos, elems) in self.memory_batch.iter().rev() {
             if pos < *start_pos {
                 continue;
@@ -34,14 +34,14 @@ impl<Elem: Clone, Store: MMRStoreReadOps<Elem>> MMRBatch<Elem, Store> {
                 break;
             }
         }
-        self.store.get_elem(pos)
+        self.store.get_elem(pos).await
     }
 }
 
-impl<Elem, Store: MMRStoreWriteOps<Elem>> MMRBatch<Elem, Store> {
-    pub fn commit(&mut self) -> Result<()> {
+impl<Elem: Send, Store: MMRStoreWriteOps<Elem>> MMRBatch<Elem, Store> {
+    pub async fn commit(&mut self) -> Result<()> {
         for (pos, elems) in self.memory_batch.drain(..) {
-            self.store.append(pos, elems)?;
+            self.store.append(pos, elems).await?;
         }
         Ok(())
     }
@@ -56,10 +56,12 @@ impl<Elem, Store> IntoIterator for MMRBatch<Elem, Store> {
     }
 }
 
-pub trait MMRStoreReadOps<Elem> {
-    fn get_elem(&self, pos: u64) -> Result<Option<Elem>>;
+#[async_trait::async_trait]
+pub trait MMRStoreReadOps<Elem>: Send + Sync {
+    async fn get_elem(&self, pos: u64) -> Result<Option<Elem>>;
 }
 
-pub trait MMRStoreWriteOps<Elem> {
-    fn append(&mut self, pos: u64, elems: Vec<Elem>) -> Result<()>;
+#[async_trait::async_trait]
+pub trait MMRStoreWriteOps<Elem>: Send + Sync {
+    async fn append(&mut self, pos: u64, elems: Vec<Elem>) -> Result<()>;
 }

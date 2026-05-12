@@ -42,20 +42,25 @@ impl Merge for MergeNumberHash {
 }
 
 fn prepare_mmr(count: u32) -> (u64, MemStore<NumberHash>, Vec<u64>) {
-    let store = MemStore::default();
-    let mut mmr = MMR::<_, MergeNumberHash, _>::new(0, &store);
-    let positions: Vec<u64> = (0u32..count)
-        .map(|i| mmr.push(NumberHash::try_from(i).unwrap()).unwrap())
-        .collect();
-    let mmr_size = mmr.mmr_size();
-    mmr.commit().expect("write to store");
-    (mmr_size, store, positions)
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let store = MemStore::default();
+        let mut mmr = MMR::<_, MergeNumberHash, _>::new(0, store);
+        let mut positions: Vec<u64> = Vec::new();
+        for i in 0u32..count {
+            let pos = mmr.push(NumberHash::try_from(i).unwrap()).await.unwrap();
+            positions.push(pos);
+        }
+        let mmr_size = mmr.mmr_size();
+        mmr.commit().await.expect("write to store");
+        (mmr_size, mmr.store().clone(), positions)
+    })
 }
 
 fn bench(c: &mut Criterion) {
     {
         let mut group = c.benchmark_group("MMR insertion");
-        let inputs = [10_000, 100_000, 100_0000];
+        let inputs = [10_000, 100_000, 1_000_000];
         for input in inputs.iter() {
             group.bench_with_input(BenchmarkId::new("times", input), &input, |b, &&size| {
                 b.iter(|| prepare_mmr(size));
@@ -64,25 +69,33 @@ fn bench(c: &mut Criterion) {
     }
 
     c.bench_function("MMR gen proof", |b| {
-        let (mmr_size, store, positions) = prepare_mmr(100_0000);
-        let mmr = MMR::<_, MergeNumberHash, _>::new(mmr_size, &store);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (mmr_size, store, positions) = prepare_mmr(1_000_000);
+        let mmr = MMR::<_, MergeNumberHash, _>::new(mmr_size, store);
         let mut rng = thread_rng();
-        b.iter(|| mmr.gen_proof(vec![*positions.choose(&mut rng).unwrap()]));
+        b.iter(|| {
+            rt.block_on(async {
+                mmr.gen_proof(vec![*positions.choose(&mut rng).unwrap()]).await
+            })
+        });
     });
 
     c.bench_function("MMR verify", |b| {
-        let (mmr_size, store, positions) = prepare_mmr(100_0000);
-        let mmr = MMR::<_, MergeNumberHash, _>::new(mmr_size, &store);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (mmr_size, store, positions) = prepare_mmr(1_000_000);
+        let mmr = MMR::<_, MergeNumberHash, _>::new(mmr_size, store.clone());
         let mut rng = thread_rng();
-        let root: NumberHash = mmr.get_root().unwrap();
-        let proofs: Vec<_> = (0..10_000)
-            .map(|_| {
+        let root: NumberHash = rt.block_on(async { mmr.get_root().await.unwrap() });
+        let proofs: Vec<_> = rt.block_on(async {
+            let mut proofs = Vec::new();
+            for _ in 0..10_000 {
                 let pos = positions.choose(&mut rng).unwrap();
-                let elem = (&store).get_elem(*pos).unwrap().unwrap();
-                let proof = mmr.gen_proof(vec![*pos]).unwrap();
-                (pos, elem, proof)
-            })
-            .collect();
+                let elem = store.get_elem(*pos).await.unwrap().unwrap();
+                let proof = mmr.gen_proof(vec![*pos]).await.unwrap();
+                proofs.push((pos, elem, proof));
+            }
+            proofs
+        });
         b.iter(|| {
             let (pos, elem, proof) = proofs.choose(&mut rng).unwrap();
             proof

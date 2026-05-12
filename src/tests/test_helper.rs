@@ -5,29 +5,48 @@ use crate::{
     leaf_index_to_mmr_size, leaf_index_to_pos,
     util::MemStore,
 };
-use lazy_static::lazy_static;
 use proptest::prelude::*;
+use std::sync::OnceLock;
 
-lazy_static! {
-    /// Positions of 0..100_000 elem
-    static ref INDEX_TO_POS: Vec<u64> = {
+/// Positions of 0..100_000 elem
+fn build_index_to_pos() -> Vec<u64> {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
         let store = MemStore::default();
-        let mut mmr = MMR::<_,MergeNumberHash,_>::new(0, &store);
-        (0u32..100_000)
-            .map(|i| mmr.push(NumberHash::from(i)).unwrap())
-            .collect()
-    };
-    /// mmr size when 0..100_000 elem
-    static ref INDEX_TO_MMR_SIZE: Vec<u64> = {
+        let mut mmr = MMR::<_, MergeNumberHash, _>::new(0, store);
+        let mut positions = Vec::new();
+        for i in 0u32..100_000 {
+            let pos = mmr.push(NumberHash::from(i)).await.unwrap();
+            positions.push(pos);
+        }
+        positions
+    })
+}
+
+/// mmr size when 0..100_000 elem
+fn build_index_to_mmr_size() -> Vec<u64> {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
         let store = MemStore::default();
-        let mut mmr = MMR::<_,MergeNumberHash,_>::new(0, &store);
-        (0u32..100_000)
-            .map(|i| {
-                mmr.push(NumberHash::from(i)).unwrap();
-                mmr.mmr_size()
-            })
-            .collect()
-    };
+        let mut mmr = MMR::<_, MergeNumberHash, _>::new(0, store);
+        let mut sizes = Vec::new();
+        for i in 0u32..100_000 {
+            mmr.push(NumberHash::from(i)).await.unwrap();
+            sizes.push(mmr.mmr_size());
+        }
+        sizes
+    })
+}
+
+static INDEX_TO_POS: OnceLock<Vec<u64>> = OnceLock::new();
+static INDEX_TO_MMR_SIZE: OnceLock<Vec<u64>> = OnceLock::new();
+
+fn get_index_to_pos() -> &'static Vec<u64> {
+    INDEX_TO_POS.get_or_init(build_index_to_pos)
+}
+
+fn get_index_to_mmr_size() -> &'static Vec<u64> {
+    INDEX_TO_MMR_SIZE.get_or_init(build_index_to_mmr_size)
 }
 
 #[test]
@@ -95,13 +114,13 @@ fn test_get_peaks() {
 
 proptest! {
     #[test]
-    fn test_leaf_index_to_pos_randomly(index in 0..INDEX_TO_POS.len()) {
+    fn test_leaf_index_to_pos_randomly(index in 0..100_000usize) {
         let pos = leaf_index_to_pos(index as u64);
-        assert_eq!(pos, INDEX_TO_POS[index]);
+        assert_eq!(pos, get_index_to_pos()[index]);
     }
 
     #[test]
-    fn test_leaf_index_to_mmr_size_randomly(index in 0..INDEX_TO_MMR_SIZE.len()) {
-        assert_eq!(leaf_index_to_mmr_size(index as u64), INDEX_TO_MMR_SIZE[index]);
+    fn test_leaf_index_to_mmr_size_randomly(index in 0..100_000usize) {
+        assert_eq!(leaf_index_to_mmr_size(index as u64), get_index_to_mmr_size()[index]);
     }
 }

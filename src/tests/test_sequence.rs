@@ -53,13 +53,15 @@ impl Merge for MergeNumberRange {
     }
 }
 
-fn test_sequence_sub_func(count: u32, proof_elem: Vec<u32>) {
+async fn test_sequence_sub_func(count: u32, proof_elem: Vec<u32>) {
     let store = MemStore::default();
-    let mut mmr = MMR::<_, MergeNumberRange, _>::new(0, &store);
-    let positions = (0..count)
-        .map(|i| mmr.push(NumberRange::from(i)).expect("push"))
-        .collect::<Vec<_>>();
-    let root = mmr.get_root().expect("get_root");
+    let mut mmr = MMR::<_, MergeNumberRange, _>::new(0, store);
+    let mut positions: Vec<u64> = Vec::new();
+    for i in 0..count {
+        let pos = mmr.push(NumberRange::from(i)).await.expect("push");
+        positions.push(pos);
+    }
+    let root = mmr.get_root().await.expect("get_root");
     assert!(root.is_normalized());
     let proof = mmr
         .gen_proof(
@@ -68,11 +70,12 @@ fn test_sequence_sub_func(count: u32, proof_elem: Vec<u32>) {
                 .map(|elem| positions[*elem as usize])
                 .collect(),
         )
+        .await
         .expect("gen_proof");
     for item in proof.proof_items() {
         assert!(item.is_normalized())
     }
-    mmr.commit().expect("commit");
+    mmr.commit().await.expect("commit");
     let result = proof
         .verify(
             root,
@@ -88,11 +91,13 @@ fn test_sequence_sub_func(count: u32, proof_elem: Vec<u32>) {
 proptest! {
     #[test]
     fn test_sequence(count in 10u32..500u32) {
-        let mut leaves: Vec<u32> = (0..count).collect();
-        let mut rng = thread_rng();
-        leaves.shuffle(&mut rng);
-        let leaves_count = rng.gen_range(1..count - 1);
-        leaves.truncate(leaves_count as usize);
-        test_sequence_sub_func(count, leaves);
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let mut leaves: Vec<u32> = (0..count).collect();
+            let mut rng = thread_rng();
+            leaves.shuffle(&mut rng);
+            let leaves_count = rng.gen_range(1..count - 1);
+            leaves.truncate(leaves_count as usize);
+            test_sequence_sub_func(count, leaves).await;
+        });
     }
 }

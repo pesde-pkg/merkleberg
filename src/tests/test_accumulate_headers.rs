@@ -102,11 +102,11 @@ impl Prover {
         }
     }
 
-    fn gen_blocks(&mut self, count: u64) -> Result<()> {
-        let mut mmr = MMR::<_, MergeHashWithTD, _>::new(self.positions.len() as u64, &self.store);
+    async fn gen_blocks(&mut self, count: u64) -> Result<()> {
+        let mut mmr = MMR::<_, MergeHashWithTD, _>::new(self.positions.len() as u64, self.store.clone());
         // get previous element
         let mut previous = if let Some(pos) = self.positions.last() {
-            mmr.store().get_elem(*pos)?.expect("exists")
+            mmr.store().get_elem(*pos).await?.expect("exists")
         } else {
             let genesis = Header::default();
 
@@ -115,7 +115,7 @@ impl Prover {
                 td: genesis.difficulty,
             };
             self.headers.push((genesis, previous.td));
-            let pos = mmr.push(previous.clone())?;
+            let pos = mmr.push(previous.clone()).await?;
             self.positions.push(pos);
             previous
         };
@@ -125,17 +125,18 @@ impl Prover {
                 number: i,
                 parent_hash: previous.hash.clone(),
                 difficulty: i,
-                chain_root: mmr.get_root()?.serialize(),
+                chain_root: mmr.get_root().await?.serialize(),
             };
             previous = HashWithTD {
                 hash: block.hash(),
                 td: block.difficulty,
             };
-            let pos = mmr.push(previous.clone())?;
+            let pos = mmr.push(previous.clone()).await?;
             self.positions.push(pos);
             self.headers.push((block, previous.td));
         }
-        mmr.commit()
+        mmr.commit().await?;
+        Ok(())
     }
 
     fn get_header(&self, number: u64) -> (Header, u64) {
@@ -143,20 +144,20 @@ impl Prover {
     }
 
     // generate proof that headers are in same chain
-    fn gen_proof(
-        &mut self,
+    async fn gen_proof(
+        &self,
         number: u64,
         later_number: u64,
     ) -> Result<MerkleProof<HashWithTD, MergeHashWithTD>> {
         assert!(number < later_number);
         let pos = self.positions[number as usize];
         let later_pos = self.positions[later_number as usize];
-        let mmr = MMR::new(later_pos, &self.store);
+        let mmr = MMR::new(later_pos, self.store.clone());
         assert_eq!(
-            mmr.get_root()?.serialize(),
+            mmr.get_root().await?.serialize(),
             self.headers[later_number as usize].0.chain_root
         );
-        mmr.gen_proof(vec![pos])
+        mmr.gen_proof(vec![pos]).await
     }
 
     fn get_pos(&self, number: u64) -> u64 {
@@ -164,10 +165,10 @@ impl Prover {
     }
 }
 
-#[test]
-fn test_insert_header() {
+#[tokio::test]
+async fn test_insert_header() {
     let mut prover = Prover::new();
-    prover.gen_blocks(30).expect("gen blocks");
+    prover.gen_blocks(30).await.expect("gen blocks");
     let h1 = 11;
     let h2 = 19;
 
@@ -184,10 +185,10 @@ fn test_insert_header() {
         HashWithTD::deserialize(later_header.chain_root)
     };
     // gen proof,  blocks are in the same chain
-    let proof = prover.gen_proof(h1, h2).expect("gen proof");
+    let proof = prover.gen_proof(h1, h2).await.expect("gen proof");
     let pos = leaf_index_to_pos(h1);
     assert_eq!(pos, prover.get_pos(h1));
-    assert_eq!(prove_elem, (&prover.store).get_elem(pos).unwrap().unwrap());
+    assert_eq!(prove_elem, prover.store.get_elem(pos).await.unwrap().unwrap());
     let result = proof.verify(root, vec![(pos, prove_elem)]).expect("verify");
     assert!(result);
 }

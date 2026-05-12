@@ -51,19 +51,19 @@ impl<T, M, S> MMR<T, M, S> {
     }
 }
 
-impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, S> {
+impl<T: Clone + PartialEq + Send + Sync, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, S> {
     // find internal MMR elem, the pos must exists, otherwise a error will return
-    fn find_elem<'b>(&self, pos: u64, hashes: &'b [T]) -> Result<Cow<'b, T>> {
+    async fn find_elem<'b>(&self, pos: u64, hashes: &'b [T]) -> Result<Cow<'b, T>> {
         let pos_offset = pos.checked_sub(self.mmr_size);
         if let Some(elem) = pos_offset.and_then(|i| hashes.get(i as usize)) {
             return Ok(Cow::Borrowed(elem));
         }
-        let elem = self.batch.get_elem(pos)?.ok_or(Error::InconsistentStore)?;
+        let elem = self.batch.get_elem(pos).await?.ok_or(Error::InconsistentStore)?;
         Ok(Cow::Owned(elem))
     }
 
     // push a element and return position
-    pub fn push(&mut self, elem: T) -> Result<u64> {
+    pub async fn push(&mut self, elem: T) -> Result<u64> {
         let mut elems = vec![elem];
         let elem_pos = self.mmr_size;
         let peak_map = get_peak_map(self.mmr_size);
@@ -73,7 +73,7 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, 
             peak <<= 1;
             pos += 1;
             let left_pos = pos - peak;
-            let left_elem = self.find_elem(left_pos, &elems)?;
+            let left_elem = self.find_elem(left_pos, &elems).await?;
             let right_elem = elems.last().expect("checked");
             let parent_elem = M::merge(&left_elem, right_elem)?;
             elems.push(parent_elem);
@@ -86,20 +86,18 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, 
     }
 
     /// get_root
-    pub fn get_root(&self) -> Result<T> {
+    pub async fn get_root(&self) -> Result<T> {
         if self.mmr_size == 0 {
             return Err(Error::GetRootOnEmpty);
         } else if self.mmr_size == 1 {
-            return self.batch.get_elem(0)?.ok_or(Error::InconsistentStore);
+            return self.batch.get_elem(0).await?.ok_or(Error::InconsistentStore);
         }
-        let peaks: Vec<T> = get_peaks(self.mmr_size)
-            .into_iter()
-            .map(|peak_pos| {
-                self.batch
-                    .get_elem(peak_pos)
-                    .and_then(|elem| elem.ok_or(Error::InconsistentStore))
-            })
-            .collect::<Result<Vec<T>>>()?;
+        let peak_positions = get_peaks(self.mmr_size);
+        let mut peaks: Vec<T> = Vec::with_capacity(peak_positions.len());
+        for peak_pos in peak_positions {
+            let elem = self.batch.get_elem(peak_pos).await?.ok_or(Error::InconsistentStore)?;
+            peaks.push(elem);
+        }
         self.bag_rhs_peaks(peaks)?.ok_or(Error::InconsistentStore)
     }
 
@@ -118,7 +116,7 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, 
     /// 1. find a lower tree in peak that can generate a complete merkle proof for position
     /// 2. find that tree by compare positions
     /// 3. generate proof for each positions
-    fn gen_proof_for_peak(
+    async fn gen_proof_for_peak(
         &self,
         proof: &mut Vec<T>,
         pos_list: Vec<u64>,
@@ -132,7 +130,8 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, 
         if pos_list.is_empty() {
             proof.push(
                 self.batch
-                    .get_elem(peak_pos)?
+                    .get_elem(peak_pos)
+                    .await?
                     .ok_or(Error::InconsistentStore)?,
             );
             return Ok(());
@@ -170,7 +169,8 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, 
             } else {
                 proof.push(
                     self.batch
-                        .get_elem(sib_pos)?
+                        .get_elem(sib_pos)
+                        .await?
                         .ok_or(Error::InconsistentStore)?,
                 );
             }
@@ -186,7 +186,7 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, 
     /// 1. sort positions
     /// 2. push merkle proof to proof by peak from left to right
     /// 3. push bagged right hand side root
-    pub fn gen_proof(&self, mut pos_list: Vec<u64>) -> Result<MerkleProof<T, M>> {
+    pub async fn gen_proof(&self, mut pos_list: Vec<u64>) -> Result<MerkleProof<T, M>> {
         if pos_list.is_empty() {
             return Err(Error::GenProofForInvalidLeaves);
         }
@@ -210,7 +210,7 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, 
             } else {
                 bagging_track = 0;
             }
-            self.gen_proof_for_peak(&mut proof, pos_list, peak_pos)?;
+            self.gen_proof_for_peak(&mut proof, pos_list, peak_pos).await?;
         }
 
         // ensure no remain positions
@@ -227,9 +227,9 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>, S: MMRStoreReadOps<T>> MMR<T, M, 
     }
 }
 
-impl<T, M, S: MMRStoreWriteOps<T>> MMR<T, M, S> {
-    pub fn commit(&mut self) -> Result<()> {
-        self.batch.commit()
+impl<T: Send, M, S: MMRStoreWriteOps<T>> MMR<T, M, S> {
+    pub async fn commit(&mut self) -> Result<()> {
+        self.batch.commit().await
     }
 }
 
