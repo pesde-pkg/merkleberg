@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ci:
+    env:
+      CARGO_TERM_COLOR: always
+      SCCACHE_GHA_ENABLED: "true"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: Linux x86_64
+            image: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+
+          - runner: Linux aarch64
+            image: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+
+          - runner: macOS x86_64
+            image: macos-15
+            target: x86_64-apple-darwin
+
+          - runner: macOS aarch64
+            image: macos-15
+            target: aarch64-apple-darwin
+
+          - runner: Windows x86_64
+            image: windows-2025
+            target: x86_64-pc-windows-msvc
+
+          - runner: Windows aarch64
+            image: windows-11-arm
+            target: aarch64-pc-windows-msvc
+
+    name: CI - ${{ matrix.runner }}
+    runs-on: ${{ matrix.image }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install tooling
+        uses: jdx/mise-action@v4
+        with:
+          version: 2026.5.6
+          install: true
+          cache: false
+
+      - name: Configure sccache
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const path = require('path');
+            const fs = require('fs');
+
+            function cacheDir() {
+              const platform = process.platform;
+
+              if (platform === 'win32') {
+                // Windows: LOCALAPPDATA
+                return process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE, 'AppData', 'Local');
+              } else if (platform === 'darwin') {
+                // macOS: ~/Library/Caches
+                return path.join(process.env.HOME, 'Library', 'Caches');
+              } else {
+                // Linux, etc: XDG_CACHE_HOME or ~/.cache as fallback
+                return process.env.XDG_CACHE_HOME || path.join(process.env.HOME, '.cache');
+              }
+            }
+
+            const sccachePath = path.join(cacheDir(), 'sccache');
+            fs.mkdirSync(sccachePath, { recursive: true });
+            core.exportVariable('SCCACHE_PATH', sccachePath);
+
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', 'on');
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Run checks (formatting and linting)
+        run: mise run check --target ${{ matrix.target }}
+
+      - name: Run tests
+        run: mise run test --target ${{ matrix.target }}
+
+      - name: Build
+        run: mise run build --target ${{ matrix.target }}
+
+      - name: Run sccache stat for check
+        if: always()
+        run: sccache --show-stats
