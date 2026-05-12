@@ -3,8 +3,8 @@ extern crate criterion;
 
 use criterion::{BenchmarkId, Criterion};
 
+use alpine_mmr::{Error, MMR, MMRStoreReadOps, Merge, Result, util::MemStore};
 use bytes::Bytes;
-use ckb_merkle_mountain_range::{Error, MMR, MMRStoreReadOps, Merge, Result, util::MemStore};
 use rand::{seq::SliceRandom, thread_rng};
 use std::convert::TryFrom;
 
@@ -75,7 +75,8 @@ fn bench(c: &mut Criterion) {
         let mut rng = thread_rng();
         b.iter(|| {
             rt.block_on(async {
-                mmr.gen_proof(vec![*positions.choose(&mut rng).unwrap()]).await
+                mmr.gen_proof(vec![*positions.choose(&mut rng).unwrap()])
+                    .await
             })
         });
     });
@@ -111,3 +112,4 @@ criterion_group!(
     targets = bench
 );
 criterion_main!(benches);
+
