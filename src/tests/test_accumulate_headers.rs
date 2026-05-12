@@ -1,194 +1,203 @@
 use super::new_blake2b;
-use crate::{MMR, MMRStoreReadOps, Merge, MerkleProof, Result, leaf_index_to_pos, util::MemStore};
+use crate::{
+  MMR, MMRStoreReadOps, Merge, MerkleProof, Result, leaf_index_to_pos,
+  util::MemStore,
+};
 use bytes::{Bytes, BytesMut};
 use std::fmt;
 
 #[derive(Clone)]
 struct Header {
-    number: u64,
-    parent_hash: Bytes,
-    difficulty: u64,
-    // MMR root
-    chain_root: Bytes,
+  number: u64,
+  parent_hash: Bytes,
+  difficulty: u64,
+  // MMR root
+  chain_root: Bytes,
 }
 
 impl Header {
-    fn default() -> Self {
-        Header {
-            number: 0,
-            parent_hash: vec![0; 32].into(),
-            difficulty: 0,
-            chain_root: vec![0; 32].into(),
-        }
+  fn default() -> Self {
+    Header {
+      number: 0,
+      parent_hash: vec![0; 32].into(),
+      difficulty: 0,
+      chain_root: vec![0; 32].into(),
     }
+  }
 
-    fn hash(&self) -> Bytes {
-        let mut hasher = new_blake2b();
-        let mut hash = [0u8; 32];
-        hasher.update(&self.number.to_le_bytes());
-        hasher.update(&self.parent_hash);
-        hasher.update(&self.difficulty.to_le_bytes());
-        hasher.update(&self.chain_root);
-        hasher.finalize(&mut hash);
-        hash.to_vec().into()
-    }
+  fn hash(&self) -> Bytes {
+    let mut hasher = new_blake2b();
+    let mut hash = [0u8; 32];
+    hasher.update(&self.number.to_le_bytes());
+    hasher.update(&self.parent_hash);
+    hasher.update(&self.difficulty.to_le_bytes());
+    hasher.update(&self.chain_root);
+    hasher.finalize(&mut hash);
+    hash.to_vec().into()
+  }
 }
 
 #[derive(Eq, PartialEq, Clone, Default)]
 struct HashWithTD {
-    hash: Bytes,
-    td: u64,
+  hash: Bytes,
+  td: u64,
 }
 
 impl HashWithTD {
-    fn serialize(&self) -> Bytes {
-        let mut data = BytesMut::from(self.hash.as_ref());
-        data.extend(&self.td.to_le_bytes());
-        data.into()
-    }
+  fn serialize(&self) -> Bytes {
+    let mut data = BytesMut::from(self.hash.as_ref());
+    data.extend(&self.td.to_le_bytes());
+    data.into()
+  }
 
-    fn deserialize(mut data: Bytes) -> Self {
-        assert_eq!(data.len(), 40);
-        let mut td_bytes = [0u8; 8];
-        td_bytes.copy_from_slice(&data[32..]);
-        let td = u64::from_le_bytes(td_bytes);
-        data.truncate(32);
-        HashWithTD { hash: data, td }
-    }
+  fn deserialize(mut data: Bytes) -> Self {
+    assert_eq!(data.len(), 40);
+    let mut td_bytes = [0u8; 8];
+    td_bytes.copy_from_slice(&data[32..]);
+    let td = u64::from_le_bytes(td_bytes);
+    data.truncate(32);
+    HashWithTD { hash: data, td }
+  }
 }
 
 impl fmt::Debug for HashWithTD {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "HashWithTD {{ hash: {}, td: {} }}",
-            faster_hex::hex_string(&self.hash),
-            self.td
-        )
-    }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(
+      f,
+      "HashWithTD {{ hash: {}, td: {} }}",
+      faster_hex::hex_string(&self.hash),
+      self.td
+    )
+  }
 }
 
 struct MergeHashWithTD;
 
 impl Merge for MergeHashWithTD {
-    type Item = HashWithTD;
-    fn merge(lhs: &Self::Item, rhs: &Self::Item) -> Result<Self::Item> {
-        let mut hasher = new_blake2b();
-        let mut hash = [0u8; 32];
-        hasher.update(&lhs.serialize());
-        hasher.update(&rhs.serialize());
-        hasher.finalize(&mut hash);
-        let td = lhs.td + rhs.td;
-        Ok(HashWithTD {
-            hash: hash.to_vec().into(),
-            td,
-        })
-    }
+  type Item = HashWithTD;
+  fn merge(lhs: &Self::Item, rhs: &Self::Item) -> Result<Self::Item> {
+    let mut hasher = new_blake2b();
+    let mut hash = [0u8; 32];
+    hasher.update(&lhs.serialize());
+    hasher.update(&rhs.serialize());
+    hasher.finalize(&mut hash);
+    let td = lhs.td + rhs.td;
+    Ok(HashWithTD {
+      hash: hash.to_vec().into(),
+      td,
+    })
+  }
 }
 
 struct Prover {
-    headers: Vec<(Header, u64)>,
-    positions: Vec<u64>,
-    store: MemStore<HashWithTD>,
+  headers: Vec<(Header, u64)>,
+  positions: Vec<u64>,
+  store: MemStore<HashWithTD>,
 }
 
 impl Prover {
-    fn new() -> Prover {
-        let store = MemStore::default();
-        Prover {
-            headers: Vec::new(),
-            positions: Vec::new(),
-            store,
-        }
+  fn new() -> Prover {
+    let store = MemStore::default();
+    Prover {
+      headers: Vec::new(),
+      positions: Vec::new(),
+      store,
     }
+  }
 
-    async fn gen_blocks(&mut self, count: u64) -> Result<()> {
-        let mut mmr = MMR::<_, MergeHashWithTD, _>::new(self.positions.len() as u64, self.store.clone());
-        // get previous element
-        let mut previous = if let Some(pos) = self.positions.last() {
-            mmr.store().get_elem(*pos).await?.expect("exists")
-        } else {
-            let genesis = Header::default();
+  async fn gen_blocks(&mut self, count: u64) -> Result<()> {
+    let mut mmr = MMR::<_, MergeHashWithTD, _>::new(
+      self.positions.len() as u64,
+      self.store.clone(),
+    );
+    // get previous element
+    let mut previous = if let Some(pos) = self.positions.last() {
+      mmr.store().get_elem(*pos).await?.expect("exists")
+    } else {
+      let genesis = Header::default();
 
-            let previous = HashWithTD {
-                hash: genesis.hash(),
-                td: genesis.difficulty,
-            };
-            self.headers.push((genesis, previous.td));
-            let pos = mmr.push(previous.clone()).await?;
-            self.positions.push(pos);
-            previous
-        };
-        let last_number = self.headers.last().unwrap().0.number;
-        for i in (last_number + 1)..=(last_number + count) {
-            let block = Header {
-                number: i,
-                parent_hash: previous.hash.clone(),
-                difficulty: i,
-                chain_root: mmr.get_root().await?.serialize(),
-            };
-            previous = HashWithTD {
-                hash: block.hash(),
-                td: block.difficulty,
-            };
-            let pos = mmr.push(previous.clone()).await?;
-            self.positions.push(pos);
-            self.headers.push((block, previous.td));
-        }
-        mmr.commit().await?;
-        Ok(())
+      let previous = HashWithTD {
+        hash: genesis.hash(),
+        td: genesis.difficulty,
+      };
+      self.headers.push((genesis, previous.td));
+      let pos = mmr.push(previous.clone()).await?;
+      self.positions.push(pos);
+      previous
+    };
+    let last_number = self.headers.last().unwrap().0.number;
+    for i in (last_number + 1)..=(last_number + count) {
+      let block = Header {
+        number: i,
+        parent_hash: previous.hash.clone(),
+        difficulty: i,
+        chain_root: mmr.get_root().await?.serialize(),
+      };
+      previous = HashWithTD {
+        hash: block.hash(),
+        td: block.difficulty,
+      };
+      let pos = mmr.push(previous.clone()).await?;
+      self.positions.push(pos);
+      self.headers.push((block, previous.td));
     }
+    mmr.commit().await?;
+    Ok(())
+  }
 
-    fn get_header(&self, number: u64) -> (Header, u64) {
-        self.headers[number as usize].clone()
-    }
+  fn get_header(&self, number: u64) -> (Header, u64) {
+    self.headers[number as usize].clone()
+  }
 
-    // generate proof that headers are in same chain
-    async fn gen_proof(
-        &self,
-        number: u64,
-        later_number: u64,
-    ) -> Result<MerkleProof<HashWithTD, MergeHashWithTD>> {
-        assert!(number < later_number);
-        let pos = self.positions[number as usize];
-        let later_pos = self.positions[later_number as usize];
-        let mmr = MMR::new(later_pos, self.store.clone());
-        assert_eq!(
-            mmr.get_root().await?.serialize(),
-            self.headers[later_number as usize].0.chain_root
-        );
-        mmr.gen_proof(vec![pos]).await
-    }
+  // generate proof that headers are in same chain
+  async fn gen_proof(
+    &self,
+    number: u64,
+    later_number: u64,
+  ) -> Result<MerkleProof<HashWithTD, MergeHashWithTD>> {
+    assert!(number < later_number);
+    let pos = self.positions[number as usize];
+    let later_pos = self.positions[later_number as usize];
+    let mmr = MMR::new(later_pos, self.store.clone());
+    assert_eq!(
+      mmr.get_root().await?.serialize(),
+      self.headers[later_number as usize].0.chain_root
+    );
+    mmr.gen_proof(vec![pos]).await
+  }
 
-    fn get_pos(&self, number: u64) -> u64 {
-        self.positions[number as usize]
-    }
+  fn get_pos(&self, number: u64) -> u64 {
+    self.positions[number as usize]
+  }
 }
 
 #[tokio::test]
 async fn test_insert_header() {
-    let mut prover = Prover::new();
-    prover.gen_blocks(30).await.expect("gen blocks");
-    let h1 = 11;
-    let h2 = 19;
+  let mut prover = Prover::new();
+  prover.gen_blocks(30).await.expect("gen blocks");
+  let h1 = 11;
+  let h2 = 19;
 
-    // get headers from prover
-    let prove_elem = {
-        let (header, td) = prover.get_header(h1);
-        HashWithTD {
-            hash: header.hash(),
-            td,
-        }
-    };
-    let root = {
-        let (later_header, _later_td) = prover.get_header(h2);
-        HashWithTD::deserialize(later_header.chain_root)
-    };
-    // gen proof,  blocks are in the same chain
-    let proof = prover.gen_proof(h1, h2).await.expect("gen proof");
-    let pos = leaf_index_to_pos(h1);
-    assert_eq!(pos, prover.get_pos(h1));
-    assert_eq!(prove_elem, prover.store.get_elem(pos).await.unwrap().unwrap());
-    let result = proof.verify(root, vec![(pos, prove_elem)]).expect("verify");
-    assert!(result);
+  // get headers from prover
+  let prove_elem = {
+    let (header, td) = prover.get_header(h1);
+    HashWithTD {
+      hash: header.hash(),
+      td,
+    }
+  };
+  let root = {
+    let (later_header, _later_td) = prover.get_header(h2);
+    HashWithTD::deserialize(later_header.chain_root)
+  };
+  // gen proof,  blocks are in the same chain
+  let proof = prover.gen_proof(h1, h2).await.expect("gen proof");
+  let pos = leaf_index_to_pos(h1);
+  assert_eq!(pos, prover.get_pos(h1));
+  assert_eq!(
+    prove_elem,
+    prover.store.get_elem(pos).await.unwrap().unwrap()
+  );
+  let result = proof.verify(root, vec![(pos, prove_elem)]).expect("verify");
+  assert!(result);
 }
