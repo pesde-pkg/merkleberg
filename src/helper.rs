@@ -1,5 +1,6 @@
 use crate::vec;
 use crate::vec::Vec;
+use sha2::{Digest, Sha256};
 
 pub fn leaf_index_to_pos(index: u64) -> u64 {
   // mmr_size - H - 1, H is the height(intervals) of last peak
@@ -109,4 +110,92 @@ pub fn get_peaks(mmr_size: u64) -> Vec<u64> {
     peak_size >>= 1;
   }
   peaks
+}
+
+fn all_ones(pos: u64) -> bool {
+  if pos == 0 {
+    return false;
+  }
+  let imsb = u64::BITS - pos.leading_zeros() - 1;
+  let mask = (1 << (imsb + 1)) - 1;
+  pos == mask
+}
+
+fn most_sig_bit(pos: u64) -> u64 {
+  if pos == 0 {
+    return 0;
+  }
+  1 << (u64::BITS - pos.leading_zeros() - 1)
+}
+
+fn log2floor(x: u64) -> u32 {
+  if x == 0 {
+    return 0;
+  }
+  u64::BITS - x.leading_zeros() - 1
+}
+
+pub fn index_height_mmriver(i: u64) -> u8 {
+  let mut pos = i + 1;
+  while !all_ones(pos) {
+    pos = pos - (most_sig_bit(pos) - 1);
+  }
+  u64::BITS as u8 - pos.leading_zeros() as u8 - 1
+}
+
+pub fn peaks_mmriver(i: u64) -> Vec<u64> {
+  let mut peak = 0;
+  let mut peaks = vec![];
+  let mut s = i + 1;
+  while s != 0 {
+    let highest_size = (1 << log2floor(s + 1)) - 1;
+    peak += highest_size;
+    peaks.push(peak - 1);
+    s -= highest_size;
+  }
+  peaks
+}
+
+pub fn inclusion_proof_path(mut i: u64, c: u64) -> Vec<u64> {
+  let mut path = vec![];
+  let mut g = index_height_mmriver(i);
+  
+  loop {
+    let sibling_offset = 2 << g;
+    
+    if index_height_mmriver(i + 1) > g {
+      let isibling = i - sibling_offset + 1;
+      i += 1;
+      if isibling > c {
+        return path;
+      }
+      path.push(isibling);
+    } else {
+      let isibling = i + sibling_offset - 1;
+      i += sibling_offset;
+      if isibling > c {
+        return path;
+      }
+      path.push(isibling);
+    }
+    g += 1;
+  }
+}
+
+pub fn consistency_proof_paths(ifrom: u64, ito: u64) -> Vec<Vec<u64>> {
+  peaks_mmriver(ifrom)
+    .into_iter()
+    .map(|ipeak| inclusion_proof_path(ipeak, ito))
+    .collect()
+}
+
+pub fn hash_pospair64(pos: u64, left: &[u8], right: &[u8]) -> [u8; 32] {
+  let mut hasher = Sha256::new();
+  hasher.update(pos.to_be_bytes());
+  hasher.update(left);
+  hasher.update(right);
+  let result = hasher.finalize();
+  let mut arr = [0u8; 32];
+  arr.copy_from_slice(&result);
+  arr
 }
