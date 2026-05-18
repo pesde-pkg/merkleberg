@@ -1,5 +1,4 @@
 use crate::Result;
-use crate::helper::hash_pospair64;
 
 pub trait Merge {
   type Item;
@@ -23,8 +22,13 @@ pub trait MergeMMRIVER {
   fn merge_peaks(right: &Self::Item, left: &Self::Item) -> Result<Self::Item>;
 }
 
+#[cfg(feature = "sha2")]
+use crate::helper::hash_pospair64;
+
+#[cfg(feature = "sha2")]
 pub struct Sha256Merge;
 
+#[cfg(feature = "sha2")]
 impl MergeMMRIVER for Sha256Merge {
   type Item = [u8; 32];
 

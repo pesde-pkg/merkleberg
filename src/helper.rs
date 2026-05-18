@@ -1,6 +1,5 @@
 use crate::vec;
 use crate::vec::Vec;
-use sha2::{Digest, Sha256};
 
 pub fn leaf_index_to_pos(index: u64) -> u64 {
   // mmr_size - H - 1, H is the height(intervals) of last peak
@@ -189,6 +188,10 @@ pub fn consistency_proof_paths(ifrom: u64, ito: u64) -> Vec<Vec<u64>> {
     .collect()
 }
 
+#[cfg(feature = "sha2")]
+use sha2::{Digest, Sha256};
+
+#[cfg(feature = "sha2")]
 pub fn hash_pospair64(pos: u64, left: &[u8], right: &[u8]) -> [u8; 32] {
   let mut hasher = Sha256::new();
   hasher.update(pos.to_be_bytes());
