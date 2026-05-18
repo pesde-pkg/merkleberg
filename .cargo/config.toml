@@ -1,0 +1,3 @@
+[build]
+# Enable sccache for incremental build caching
+rustc-wrapper = "sccache"

@@ -1,9 +1,9 @@
 [tools]
 rust = { version = "1.85.0", profile = "default", components = "rustfmt,rust-src,rust-analyzer" }
-"aqua:mozilla/sccache" = "0.15.0"
+sccache = "0.15.0"
 
 [env]
-RUSTC_WRAPPER = "sccache"
+RUSTC_WRAPPER = { value = "sccache", os = ["linux", "macos"] }
 
 [tasks.check]
 description = "Run checks for formatting and linting (ensures locked and all features)"
