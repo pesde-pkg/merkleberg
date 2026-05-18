@@ -1,6 +1,6 @@
 use super::new_blake2b;
 use crate::MMR;
-use crate::MerkleProof;
+use crate::InclusionProof;
 use crate::leaf_index_to_pos;
 use crate::merge::{Merge, MergeResult};
 use crate::mmr_store::MMRStoreReadOps;
@@ -156,7 +156,7 @@ impl Prover {
     &self,
     number: u64,
     later_number: u64,
-  ) -> MerkleProof<HashWithTD, MergeHashWithTD> {
+  ) -> InclusionProof<HashWithTD, MergeHashWithTD> {
     assert!(number < later_number);
     let pos = self.positions[number as usize];
     let later_pos = self.positions[later_number as usize];

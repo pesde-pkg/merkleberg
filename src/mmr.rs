@@ -204,12 +204,12 @@ impl<
   pub async fn gen_proof(
     &self,
     mut pos_list: Vec<u64>,
-  ) -> core::result::Result<MerkleProof<T, M>, Error<S::Error>> {
+  ) -> core::result::Result<InclusionProof<T, M>, Error<S::Error>> {
     if pos_list.is_empty() {
       return Err(Error::GenProofForInvalidLeaves);
     }
     if self.mmr_size == 1 && pos_list == [0] {
-      return Ok(MerkleProof::new(self.mmr_size, Vec::new()));
+      return Ok(InclusionProof::new(self.mmr_size, Vec::new()));
     }
     if pos_list.iter().any(|pos| pos_height_in_tree(*pos) > 0) {
       return Err(Error::NodeProofsNotSupported);
@@ -246,7 +246,7 @@ impl<
       );
     }
 
-    Ok(MerkleProof::new(self.mmr_size, proof))
+    Ok(InclusionProof::new(self.mmr_size, proof))
   }
 }
 
@@ -257,15 +257,15 @@ impl<T: Send, M, S: MMRStoreWriteOps<T>> MMR<T, M, S> {
 }
 
 #[derive(Debug)]
-pub struct MerkleProof<T, M> {
+pub struct InclusionProof<T, M> {
   mmr_size: u64,
   proof: Vec<T>,
   merge: PhantomData<M>,
 }
 
-impl<T: Clone + PartialEq, M: Merge<Item = T>> MerkleProof<T, M> {
+impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
   pub fn new(mmr_size: u64, proof: Vec<T>) -> Self {
-    MerkleProof {
+    InclusionProof {
       mmr_size,
       proof,
       merge: PhantomData,

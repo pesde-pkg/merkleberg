@@ -1,6 +1,6 @@
 use super::{MergeNumberHash, NumberHash};
 use crate::Error;
-use crate::MerkleProof;
+use crate::InclusionProof;
 use crate::helper::pos_height_in_tree;
 use crate::leaf_index_to_mmr_size;
 use crate::merge::{Merge, MergeResult};
@@ -216,14 +216,14 @@ async fn test_invalid_proof_verification(
     )
   });
 
-  let handrolled_proof: Option<MerkleProof<MyItem, MyMerge>> =
+  let handrolled_proof: Option<InclusionProof<MyItem, MyMerge>> =
     if let Some(handrolled_proof_positions) = handrolled_proof_positions {
       let mut proof_elems: Vec<MyItem> = Vec::new();
       for pos in &handrolled_proof_positions {
         let elem = mmr.batch().get_elem(*pos).await.unwrap().unwrap();
         proof_elems.push(elem);
       }
-      Some(MerkleProof::new(mmr.mmr_size(), proof_elems))
+      Some(InclusionProof::new(mmr.mmr_size(), proof_elems))
     } else {
       None
     };
