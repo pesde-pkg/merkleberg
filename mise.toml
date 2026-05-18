@@ -3,7 +3,7 @@ rust = { version = "1.85.0", profile = "default", components = "rustfmt,rust-src
 sccache = "0.15.0"
 
 [env]
-RUSTC_WRAPPER = { value = "sccache", os = ["linux", "macos"] }
+RUSTC_WRAPPER = "{% if os() != 'windows' %}sccache{% endif %}"
 
 [tasks.check]
 description = "Run checks for formatting and linting (ensures locked and all features)"
