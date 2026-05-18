@@ -1,5 +1,5 @@
 [tools]
-rust = { version = "1.85.0", profile = "default", components = "rustfmt,rust-src,rust-analyzer" }
+rust = { version = "1.85.0", profile = "default", components = "cargo,rustfmt,rust-src,rust-analyzer" }
 sccache = "0.15.0"
 
 [env]
