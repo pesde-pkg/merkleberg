@@ -14,7 +14,11 @@ pub trait Merge {
 pub trait MergeMMRIVER {
   type Item: Clone + PartialEq;
 
-  fn merge_pos(pos: u64, left: &Self::Item, right: &Self::Item) -> Result<Self::Item>;
+  fn merge_pos(
+    pos: u64,
+    left: &Self::Item,
+    right: &Self::Item,
+  ) -> Result<Self::Item>;
 
   fn merge_peaks(right: &Self::Item, left: &Self::Item) -> Result<Self::Item>;
 }
@@ -24,7 +28,11 @@ pub struct Sha256Merge;
 impl MergeMMRIVER for Sha256Merge {
   type Item = [u8; 32];
 
-  fn merge_pos(pos: u64, left: &Self::Item, right: &Self::Item) -> Result<Self::Item> {
+  fn merge_pos(
+    pos: u64,
+    left: &Self::Item,
+    right: &Self::Item,
+  ) -> Result<Self::Item> {
     Ok(hash_pospair64(pos, left, right))
   }
 

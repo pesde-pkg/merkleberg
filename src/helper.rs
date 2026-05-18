@@ -159,10 +159,10 @@ pub fn peaks_mmriver(i: u64) -> Vec<u64> {
 pub fn inclusion_proof_path(mut i: u64, c: u64) -> Vec<u64> {
   let mut path = vec![];
   let mut g = index_height_mmriver(i);
-  
+
   loop {
     let sibling_offset = 2 << g;
-    
+
     if index_height_mmriver(i + 1) > g {
       let isibling = i - sibling_offset + 1;
       i += 1;

@@ -1,7 +1,9 @@
 use crate::borrow::Cow;
-use crate::helper::{consistency_proof_paths, index_height_mmriver, peaks_mmriver};
-use crate::mmr_store::{MMRBatch, MMRStoreReadOps, MMRStoreWriteOps};
+use crate::helper::{
+  consistency_proof_paths, index_height_mmriver, peaks_mmriver,
+};
 use crate::merge::MergeMMRIVER;
+use crate::mmr_store::{MMRBatch, MMRStoreReadOps, MMRStoreWriteOps};
 use crate::vec;
 use crate::vec::Vec;
 use crate::{Error, Result};
@@ -45,17 +47,22 @@ impl<
   S: MMRStoreReadOps<T>,
 > MMRIVER<T, M, S>
 {
-  async fn find_elem<'b>(&self, pos: u64, hashes: &'b [T]) -> Result<Cow<'b, T>> {
+  async fn find_elem<'b>(
+    &self,
+    pos: u64,
+    hashes: &'b [T],
+  ) -> Result<Cow<'b, T>> {
     let pos_offset = pos.checked_sub(self.mmr_size);
     if let Some(elem) = pos_offset.and_then(|i| hashes.get(i as usize)) {
       return Ok(Cow::Borrowed(elem));
     }
-    
+
     self
       .batch
       .get_elem(pos)
       .await?
-      .ok_or(Error::InconsistentStore).map(Cow::Owned)
+      .ok_or(Error::InconsistentStore)
+      .map(Cow::Owned)
   }
 
   pub async fn push(&mut self, elem: T) -> Result<u64> {
@@ -65,14 +72,14 @@ impl<
     let mut g = 0u8;
 
     while index_height_mmriver(i) > g {
-        let left_pos = i - (2 << g);
-        let right_pos = i - 1;
-        let left_elem = self.find_elem(left_pos, &elems).await?;
-        let right_elem = self.find_elem(right_pos, &elems).await?;
-        let parent_elem = M::merge_pos(i + 1, &left_elem, &right_elem)?;
-        elems.push(parent_elem);
-        i += 1;
-        g += 1;
+      let left_pos = i - (2 << g);
+      let right_pos = i - 1;
+      let left_elem = self.find_elem(left_pos, &elems).await?;
+      let right_elem = self.find_elem(right_pos, &elems).await?;
+      let parent_elem = M::merge_pos(i + 1, &left_elem, &right_elem)?;
+      elems.push(parent_elem);
+      i += 1;
+      g += 1;
     }
 
     self.batch.append(elem_pos, elems);
@@ -138,10 +145,17 @@ impl<
       proof_paths.push(path_values);
     }
 
-    Ok(ConsistencyProof::new(mmr_size_from, self.mmr_size, proof_paths))
+    Ok(ConsistencyProof::new(
+      mmr_size_from,
+      self.mmr_size,
+      proof_paths,
+    ))
   }
 
-  pub async fn gen_inclusion_proof(&self, i: u64) -> Result<InclusionProof<T, M>> {
+  pub async fn gen_inclusion_proof(
+    &self,
+    i: u64,
+  ) -> Result<InclusionProof<T, M>> {
     if i >= self.mmr_size {
       return Err(Error::GenProofForInvalidLeaves);
     }
@@ -198,13 +212,15 @@ impl<T: Clone + PartialEq, M: MergeMMRIVER<Item = T>> InclusionProof<T, M> {
   }
 
   pub fn verify(&self, accumulator: &[T]) -> Result<bool> {
-    let root = self.included_root(self.proof.last().cloned().ok_or(Error::CorruptedProof)?)?;
-    
+    let root = self.included_root(
+      self.proof.last().cloned().ok_or(Error::CorruptedProof)?,
+    )?;
+
     let peak_positions = peaks_mmriver(self.index);
     if peak_positions.is_empty() {
       return Ok(false);
     }
-    
+
     for peak in accumulator {
       if *peak == root {
         return Ok(true);
@@ -223,7 +239,11 @@ pub struct ConsistencyProof<T, M> {
 }
 
 impl<T: Clone + PartialEq, M: MergeMMRIVER<Item = T>> ConsistencyProof<T, M> {
-  pub fn new(mmr_size_from: u64, mmr_size_to: u64, proof_paths: Vec<Vec<T>>) -> Self {
+  pub fn new(
+    mmr_size_from: u64,
+    mmr_size_to: u64,
+    proof_paths: Vec<Vec<T>>,
+  ) -> Self {
     ConsistencyProof {
       mmr_size_from,
       mmr_size_to,
@@ -246,13 +266,19 @@ impl<T: Clone + PartialEq, M: MergeMMRIVER<Item = T>> ConsistencyProof<T, M> {
 
   pub fn consistent_roots(&self, old_accumulator: Vec<T>) -> Result<Vec<T>> {
     let from_peaks = peaks_mmriver(self.mmr_size_from - 1);
-    if from_peaks.len() != old_accumulator.len() || from_peaks.len() != self.proof_paths.len() {
+    if from_peaks.len() != old_accumulator.len()
+      || from_peaks.len() != self.proof_paths.len()
+    {
       return Err(Error::CorruptedProof);
     }
 
     let mut roots: Vec<T> = Vec::new();
     for i in 0..from_peaks.len() {
-      let root = included_root::<M, T>(from_peaks[i], old_accumulator[i].clone(), &self.proof_paths[i])?;
+      let root = included_root::<M, T>(
+        from_peaks[i],
+        old_accumulator[i].clone(),
+        &self.proof_paths[i],
+      )?;
       if roots.last().is_some_and(|r| *r == root) {
         continue;
       }
@@ -261,9 +287,13 @@ impl<T: Clone + PartialEq, M: MergeMMRIVER<Item = T>> ConsistencyProof<T, M> {
     Ok(roots)
   }
 
-  pub fn verify(&self, old_accumulator: Vec<T>, new_accumulator: &[T]) -> Result<bool> {
+  pub fn verify(
+    &self,
+    old_accumulator: Vec<T>,
+    new_accumulator: &[T],
+  ) -> Result<bool> {
     let proven = self.consistent_roots(old_accumulator)?;
-    
+
     let mut idx = 0;
     for root in proven {
       if idx >= new_accumulator.len() {
