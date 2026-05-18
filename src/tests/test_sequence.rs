@@ -3,7 +3,7 @@ use std::fmt;
 use proptest::proptest;
 use rand::{prelude::*, thread_rng};
 
-use crate::{MMR, Merge, Result, util::MemStore};
+use crate::{MMR, Merge, MergeResult, util::MemStore};
 
 #[derive(Eq, PartialEq, Clone, Default)]
 struct NumberRange {
@@ -42,13 +42,16 @@ impl NumberRange {
 
 impl Merge for MergeNumberRange {
   type Item = NumberRange;
-  fn merge(lhs: &Self::Item, rhs: &Self::Item) -> Result<Self::Item> {
+  fn merge(lhs: &Self::Item, rhs: &Self::Item) -> MergeResult<Self::Item> {
     Ok(Self::Item {
       start: lhs.start,
       end: rhs.end,
     })
   }
-  fn merge_peaks(lhs: &Self::Item, rhs: &Self::Item) -> Result<Self::Item> {
+  fn merge_peaks(
+    lhs: &Self::Item,
+    rhs: &Self::Item,
+  ) -> MergeResult<Self::Item> {
     Self::merge(rhs, lhs)
   }
 }

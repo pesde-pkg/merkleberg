@@ -1,6 +1,8 @@
-use crate::{Result, vec::Vec};
+use crate::vec::Vec;
+use core::error::Error;
+use core::future::Future;
+use core::result::Result;
 
-#[derive(Default)]
 pub struct MMRBatch<Elem, Store> {
   memory_batch: Vec<(u64, Vec<Elem>)>,
   store: Store,
@@ -23,8 +25,10 @@ impl<Elem, Store> MMRBatch<Elem, Store> {
   }
 }
 
-impl<Elem: Clone + Send, Store: MMRStoreReadOps<Elem>> MMRBatch<Elem, Store> {
-  pub async fn get_elem(&self, pos: u64) -> Result<Option<Elem>> {
+impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
+  MMRBatch<Elem, Store>
+{
+  pub async fn get_elem(&self, pos: u64) -> Result<Option<Elem>, Store::Error> {
     for (start_pos, elems) in self.memory_batch.iter().rev() {
       if pos < *start_pos {
         continue;
@@ -39,7 +43,7 @@ impl<Elem: Clone + Send, Store: MMRStoreReadOps<Elem>> MMRBatch<Elem, Store> {
 }
 
 impl<Elem: Send, Store: MMRStoreWriteOps<Elem>> MMRBatch<Elem, Store> {
-  pub async fn commit(&mut self) -> Result<()> {
+  pub async fn commit(&mut self) -> Result<(), Store::Error> {
     for (pos, elems) in self.memory_batch.drain(..) {
       self.store.append(pos, elems).await?;
     }
@@ -56,12 +60,19 @@ impl<Elem, Store> IntoIterator for MMRBatch<Elem, Store> {
   }
 }
 
-#[async_trait::async_trait]
 pub trait MMRStoreReadOps<Elem>: Send + Sync {
-  async fn get_elem(&self, pos: u64) -> Result<Option<Elem>>;
+  type Error: Error + Send + 'static;
+  fn get_elem(
+    &self,
+    pos: u64,
+  ) -> impl Future<Output = Result<Option<Elem>, Self::Error>> + Send;
 }
 
-#[async_trait::async_trait]
 pub trait MMRStoreWriteOps<Elem>: Send + Sync {
-  async fn append(&mut self, pos: u64, elems: Vec<Elem>) -> Result<()>;
+  type Error: Error + Send + 'static;
+  fn append(
+    &mut self,
+    pos: u64,
+    elems: Vec<Elem>,
+  ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }

@@ -5,7 +5,8 @@ mod test_mmr;
 mod test_mmriver;
 mod test_sequence;
 
-use crate::{Merge, Result};
+use crate::Merge;
+use crate::merge::MergeResult;
 use blake2b_rs::{Blake2b, Blake2bBuilder};
 use bytes::Bytes;
 
@@ -29,7 +30,7 @@ struct MergeNumberHash;
 
 impl Merge for MergeNumberHash {
   type Item = NumberHash;
-  fn merge(lhs: &Self::Item, rhs: &Self::Item) -> Result<Self::Item> {
+  fn merge(lhs: &Self::Item, rhs: &Self::Item) -> MergeResult<Self::Item> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&lhs.0);

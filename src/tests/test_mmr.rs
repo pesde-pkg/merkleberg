@@ -1,10 +1,10 @@
 use super::{MergeNumberHash, NumberHash};
-use crate::{
-  Error,
-  helper::pos_height_in_tree,
-  leaf_index_to_mmr_size,
-  util::{MemMMR, MemStore},
-};
+use crate::Error;
+use crate::MerkleProof;
+use crate::helper::pos_height_in_tree;
+use crate::leaf_index_to_mmr_size;
+use crate::merge::{Merge, MergeResult};
+use crate::util::{MemMMR, MemStore};
 use faster_hex::hex_string;
 use proptest::prelude::*;
 use rand::{Rng, seq::SliceRandom, thread_rng};
@@ -158,23 +158,17 @@ async fn test_gen_proof_with_duplicate_leaves() {
 async fn test_invalid_proof_verification(
   leaf_count: u32,
   positions_to_verify: Vec<u64>,
-  // positions of entries that should be tampered
   tampered_positions: Vec<usize>,
-  // optionally handroll proof from these positions
   handrolled_proof_positions: Option<Vec<u64>>,
 ) {
-  use crate::{Merge, MerkleProof};
-  use std::fmt::{Debug, Formatter};
-
-  // Simple item struct to allow debugging the contents of MMR nodes/peaks
   #[derive(Clone, PartialEq)]
   enum MyItem {
     Number(u32),
     Merged(Box<MyItem>, Box<MyItem>),
   }
 
-  impl Debug for MyItem {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+  impl std::fmt::Debug for MyItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
       match self {
         MyItem::Number(x) => f.write_fmt(format_args!("{}", x)),
         MyItem::Merged(a, b) => {
@@ -189,10 +183,7 @@ async fn test_invalid_proof_verification(
 
   impl Merge for MyMerge {
     type Item = MyItem;
-    fn merge(
-      lhs: &Self::Item,
-      rhs: &Self::Item,
-    ) -> Result<Self::Item, crate::Error> {
+    fn merge(lhs: &Self::Item, rhs: &Self::Item) -> MergeResult<Self::Item> {
       Ok(MyItem::Merged(Box::new(lhs.clone()), Box::new(rhs.clone())))
     }
   }
@@ -232,7 +223,6 @@ async fn test_invalid_proof_verification(
       None
     };
 
-  // verification should fail whenever trying to prove membership of a non-member
   if let Some(handrolled_proof) = handrolled_proof {
     let handrolled_proof_result =
       handrolled_proof.verify(root.clone(), tampered_entries_to_verify.clone());
@@ -247,7 +237,6 @@ async fn test_invalid_proof_verification(
       assert!(!proof.verify(root, tampered_entries_to_verify).unwrap());
     }
     Err(Error::NodeProofsNotSupported) => {
-      // if couldn't generate proof, then it contained a non-leaf
       assert!(
         positions_to_verify
           .iter()
@@ -359,14 +348,6 @@ async fn test_generic_proofs() {
     Some(vec![1, 4]),
   )
   .await;
-}
-
-prop_compose! {
-    fn count_elem(count: u32)
-                (elem in 0..count)
-                -> (u32, u32) {
-                    (count, elem)
-    }
 }
 
 proptest! {

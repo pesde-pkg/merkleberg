@@ -1,5 +1,6 @@
 use crate::collections::BTreeMap;
-use crate::{MMR, MMRStoreReadOps, MMRStoreWriteOps, Result, vec::Vec};
+use crate::mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
+use crate::vec::Vec;
 use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
@@ -17,16 +18,18 @@ impl<T> MemStore<T> {
   }
 }
 
-#[async_trait::async_trait]
 impl<T: Clone + Send + Sync> MMRStoreReadOps<T> for MemStore<T> {
-  async fn get_elem(&self, pos: u64) -> Result<Option<T>> {
+  type Error = core::convert::Infallible;
+
+  async fn get_elem(&self, pos: u64) -> core::result::Result<Option<T>, Self::Error> {
     Ok(self.0.read().unwrap().get(&pos).cloned())
   }
 }
 
-#[async_trait::async_trait]
 impl<T: Send + Sync> MMRStoreWriteOps<T> for MemStore<T> {
-  async fn append(&mut self, pos: u64, elems: Vec<T>) -> Result<()> {
+  type Error = core::convert::Infallible;
+
+  async fn append(&mut self, pos: u64, elems: Vec<T>) -> core::result::Result<(), Self::Error> {
     let mut store = self.0.write().unwrap();
     for (i, elem) in elems.into_iter().enumerate() {
       store.insert(pos + i as u64, elem);
@@ -35,4 +38,4 @@ impl<T: Send + Sync> MMRStoreWriteOps<T> for MemStore<T> {
   }
 }
 
-pub type MemMMR<T, M> = MMR<T, M, MemStore<T>>;
+pub type MemMMR<T, M> = crate::MMR<T, M, MemStore<T>>;
