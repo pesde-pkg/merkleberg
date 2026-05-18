@@ -42,17 +42,23 @@ impl NumberRange {
 
 impl Merge for MergeNumberRange {
   type Item = NumberRange;
-  fn merge(lhs: &Self::Item, rhs: &Self::Item) -> MergeResult<Self::Item> {
+
+  fn merge_pos(
+    _pos: u64,
+    lhs: &Self::Item,
+    rhs: &Self::Item,
+  ) -> MergeResult<Self::Item> {
     Ok(Self::Item {
       start: lhs.start,
       end: rhs.end,
     })
   }
+
   fn merge_peaks(
-    lhs: &Self::Item,
-    rhs: &Self::Item,
+    left: &Self::Item,
+    right: &Self::Item,
   ) -> MergeResult<Self::Item> {
-    Self::merge(rhs, lhs)
+    Self::merge_pos(0, right, left)
   }
 }
 

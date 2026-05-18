@@ -30,7 +30,12 @@ struct MergeNumberHash;
 
 impl Merge for MergeNumberHash {
   type Item = NumberHash;
-  fn merge(lhs: &Self::Item, rhs: &Self::Item) -> MergeResult<Self::Item> {
+
+  fn merge_pos(
+    _pos: u64,
+    lhs: &Self::Item,
+    rhs: &Self::Item,
+  ) -> MergeResult<Self::Item> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&lhs.0);

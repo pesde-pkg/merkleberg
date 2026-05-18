@@ -4,7 +4,9 @@ extern crate criterion;
 use criterion::{BenchmarkId, Criterion};
 
 use bytes::Bytes;
-use merkleberg::{Error, MMR, MMRStoreReadOps, Merge, Result, util::MemStore};
+use merkleberg::{
+  Error, MMR, MMRStoreReadOps, Merge, MergeResult, util::MemStore,
+};
 use rand::{seq::SliceRandom, thread_rng};
 use std::convert::TryFrom;
 
@@ -18,7 +20,7 @@ fn new_blake2b() -> Blake2b {
 struct NumberHash(pub Bytes);
 impl TryFrom<u32> for NumberHash {
   type Error = Error;
-  fn try_from(num: u32) -> Result<Self> {
+  fn try_from(num: u32) -> core::result::Result<Self, Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&num.to_le_bytes());
@@ -31,7 +33,12 @@ struct MergeNumberHash;
 
 impl Merge for MergeNumberHash {
   type Item = NumberHash;
-  fn merge(lhs: &Self::Item, rhs: &Self::Item) -> Result<Self::Item> {
+
+  fn merge_pos(
+    _pos: u64,
+    lhs: &Self::Item,
+    rhs: &Self::Item,
+  ) -> MergeResult<Self::Item> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&lhs.0);

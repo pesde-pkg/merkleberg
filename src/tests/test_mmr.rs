@@ -183,7 +183,12 @@ async fn test_invalid_proof_verification(
 
   impl Merge for MyMerge {
     type Item = MyItem;
-    fn merge(lhs: &Self::Item, rhs: &Self::Item) -> MergeResult<Self::Item> {
+
+    fn merge_pos(
+      _pos: u64,
+      lhs: &Self::Item,
+      rhs: &Self::Item,
+    ) -> MergeResult<Self::Item> {
       Ok(MyItem::Merged(Box::new(lhs.clone()), Box::new(rhs.clone())))
     }
   }

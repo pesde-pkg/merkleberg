@@ -3,7 +3,7 @@ use crate::borrow::Cow;
 use crate::helper::{
   consistency_proof_paths, index_height_mmriver, peaks_mmriver,
 };
-use crate::merge::{MergeMMRIVER, MergeResult};
+use crate::merge::{Merge, MergeResult};
 use crate::mmr_store::{MMRBatch, MMRStoreReadOps, MMRStoreWriteOps};
 use crate::string::String;
 use crate::vec;
@@ -44,7 +44,7 @@ impl<T, M, S> MMRIVER<T, M, S> {
 
 impl<
   T: Clone + PartialEq + Send + Sync,
-  M: MergeMMRIVER<Item = T>,
+  M: Merge<Item = T>,
   S: MMRStoreReadOps<T>,
 > MMRIVER<T, M, S>
 {
@@ -204,7 +204,7 @@ pub struct InclusionProof<T, M> {
   _merge: PhantomData<M>,
 }
 
-impl<T: Clone + PartialEq, M: MergeMMRIVER<Item = T>> InclusionProof<T, M> {
+impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
   pub fn new(index: u64, proof: Vec<T>) -> Self {
     InclusionProof {
       index,
@@ -255,7 +255,7 @@ pub struct ConsistencyProof<T, M> {
   _merge: PhantomData<M>,
 }
 
-impl<T: Clone + PartialEq, M: MergeMMRIVER<Item = T>> ConsistencyProof<T, M> {
+impl<T: Clone + PartialEq, M: Merge<Item = T>> ConsistencyProof<T, M> {
   pub fn new(
     mmr_size_from: u64,
     mmr_size_to: u64,
@@ -332,7 +332,7 @@ impl<T: Clone + PartialEq, M: MergeMMRIVER<Item = T>> ConsistencyProof<T, M> {
   }
 }
 
-pub fn included_root<M: MergeMMRIVER<Item = T>, T: Clone>(
+pub fn included_root<M: Merge<Item = T>, T: Clone>(
   i: u64,
   nodehash: T,
   proof: &[T],

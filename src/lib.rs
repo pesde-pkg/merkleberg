@@ -16,7 +16,7 @@ pub use helper::hash_pospair64;
 pub use helper::{leaf_index_to_mmr_size, leaf_index_to_pos};
 #[cfg(feature = "sha2")]
 pub use merge::Sha256Merge;
-pub use merge::{Merge, MergeMMRIVER, MergeResult};
+pub use merge::{Merge, MergeResult};
 pub use mmr::{MMR, MerkleProof};
 pub use mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
 pub use mmriver::{ConsistencyProof, InclusionProof, MMRIVER, included_root};
