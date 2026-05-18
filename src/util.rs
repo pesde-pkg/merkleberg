@@ -21,7 +21,10 @@ impl<T> MemStore<T> {
 impl<T: Clone + Send + Sync> MMRStoreReadOps<T> for MemStore<T> {
   type Error = core::convert::Infallible;
 
-  async fn get_elem(&self, pos: u64) -> core::result::Result<Option<T>, Self::Error> {
+  async fn get_elem(
+    &self,
+    pos: u64,
+  ) -> core::result::Result<Option<T>, Self::Error> {
     Ok(self.0.read().unwrap().get(&pos).cloned())
   }
 }
@@ -29,7 +32,11 @@ impl<T: Clone + Send + Sync> MMRStoreReadOps<T> for MemStore<T> {
 impl<T: Send + Sync> MMRStoreWriteOps<T> for MemStore<T> {
   type Error = core::convert::Infallible;
 
-  async fn append(&mut self, pos: u64, elems: Vec<T>) -> core::result::Result<(), Self::Error> {
+  async fn append(
+    &mut self,
+    pos: u64,
+    elems: Vec<T>,
+  ) -> core::result::Result<(), Self::Error> {
     let mut store = self.0.write().unwrap();
     for (i, elem) in elems.into_iter().enumerate() {
       store.insert(pos + i as u64, elem);
