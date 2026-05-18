@@ -1,6 +1,6 @@
 [tools]
 rust = { version = "1.85.0", profile = "default", components = "rustfmt,rust-src,rust-analyzer" }
-sccache = "0.15.0"
+"aqua:mozilla/sccache" = "0.15.0"
 
 [env]
 RUSTC_WRAPPER = "sccache"
