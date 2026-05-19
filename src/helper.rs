@@ -127,13 +127,6 @@ fn most_sig_bit(pos: u64) -> u64 {
   1 << (u64::BITS - pos.leading_zeros() - 1)
 }
 
-fn log2floor(x: u64) -> u32 {
-  if x == 0 {
-    return 0;
-  }
-  u64::BITS - x.leading_zeros() - 1
-}
-
 pub fn index_height_mmriver(i: u64) -> u8 {
   let mut pos = i + 1;
   while !all_ones(pos) {
@@ -147,7 +140,7 @@ pub fn peaks_mmriver(i: u64) -> Vec<u64> {
   let mut peaks = vec![];
   let mut s = i + 1;
   while s != 0 {
-    let highest_size = (1 << log2floor(s + 1)) - 1;
+    let highest_size = (1 << u64::checked_ilog2(s + 1).unwrap_or(0)) - 1;
     peak += highest_size;
     peaks.push(peak - 1);
     s -= highest_size;
