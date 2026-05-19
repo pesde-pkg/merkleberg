@@ -9,17 +9,15 @@ description = "Merkle mountain range library in Rust"
 repository = "https://github.com/pesde-pkg/merkleberg"
 
 [features]
-default = ["std", "digest", "sha2"]
+default = ["std", "digest"]
 std = []
 digest = ["dep:digest"]
 unsafe-digest = ["digest"]
-sha2 = ["dep:sha2"]
 
 [dependencies]
 cfg-if = "1.0"
 futures-util = "0.3"
 digest = { version = "0.11", optional = true }
-sha2 = { version = "0.11", optional = true }
 
 [dev-dependencies]
 faster-hex = "0.8.0"

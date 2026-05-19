@@ -27,13 +27,6 @@ pub use merge::DigestMerge;
 #[allow(deprecated)]
 pub use merge::DigestMergeUnsafe;
 
-#[cfg(all(feature = "digest", feature = "sha2"))]
-pub use merge::Sha256Merge;
-
-#[cfg(all(feature = "unsafe-digest", feature = "sha2"))]
-#[allow(deprecated)]
-pub use merge::Sha256MergeUnsafe;
-
 cfg_if::cfg_if! {
   if #[cfg(feature = "std")] {
     use std::borrow;

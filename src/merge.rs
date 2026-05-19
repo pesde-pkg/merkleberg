@@ -85,6 +85,7 @@ cfg_if::cfg_if! {
     )]
     pub struct DigestMergeUnsafe<H: digest::Digest>(core::marker::PhantomData<H>);
 
+    #[allow(deprecated)]
     impl<H: digest::Digest> Merge for DigestMergeUnsafe<H> {
       type Item = digest::Output<H>;
 
@@ -108,15 +109,3 @@ cfg_if::cfg_if! {
     }
   }
 }
-
-/// SHA-256 hasher with domain separation (32-byte output).
-#[cfg(all(feature = "digest", feature = "sha2"))]
-pub type Sha256Merge = DigestMerge<sha2::Sha256>;
-
-/// Unsafe SHA-256 hasher **WITHOUT** domain separation. Refer to [`Sha256Merge`]
-/// instead for production usage.
-#[cfg(all(feature = "unsafe-digest", feature = "sha2"))]
-#[deprecated(
-  note = "Vulnerable to second preimage attacks, use Sha256Merge instead"
-)]
-pub type Sha256MergeUnsafe = DigestMergeUnsafe<sha2::Sha256>;

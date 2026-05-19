@@ -1,17 +1,17 @@
 cfg_if::cfg_if! {
-  if #[cfg(all(feature = "unsafe-digest", feature = "sha2"))] {
+  if #[cfg(feature = "unsafe-digest")] {
     use crate::{
       helper::{index_height_mmriver, peaks_mmriver},
       mmriver::{MMRIVER, included_root},
       util::MemStore,
     };
     #[allow(deprecated)]
-    use crate::merge::Sha256MergeUnsafe;
+    use crate::merge::DigestMergeUnsafe;
     use digest::Output;
     use sha2::{Digest, Sha256};
 
     #[allow(deprecated)]
-    type SpecMMRIVER = MMRIVER<Sha256MergeUnsafe, MemStore<Output<Sha256>>>;
+    type SpecMMRIVER = MMRIVER<DigestMergeUnsafe<Sha256>, MemStore<Output<Sha256>>>;
 
     fn leaf_hash_spec(i: u64) -> Output<Sha256> {
       let mut hasher = Sha256::new();
@@ -250,7 +250,7 @@ cfg_if::cfg_if! {
 
       let proof = vec![sibling1, sibling5, sibling13, sibling29];
       #[allow(deprecated)]
-      let root = included_root::<Sha256MergeUnsafe>(0, node0, &proof).unwrap();
+      let root = included_root::<DigestMergeUnsafe<Sha256>>(0, node0, &proof).unwrap();
 
       let peak30 = mmr.batch().get_elem(30).await.unwrap().unwrap();
       assert_eq!(root, peak30);
@@ -259,21 +259,21 @@ cfg_if::cfg_if! {
 }
 
 cfg_if::cfg_if! {
-  if #[cfg(all(feature = "digest", feature = "sha2", not(feature = "unsafe-digest")))] {
+  if #[cfg(all(feature = "digest", not(feature = "unsafe-digest")))] {
     use crate::{
-      merge::{Merge, Sha256Merge},
+      merge::{Merge, DigestMerge},
       MMRIVER,
       util::MemStore,
     };
     use digest::Output;
     use sha2::{Digest, Sha256};
 
-    type SecureMMRIVER = MMRIVER<Sha256Merge, MemStore<Output<Sha256>>>;
+    type SecureMMRIVER = MMRIVER<DigestMerge<Sha256>, MemStore<Output<Sha256>>>;
 
     #[tokio::test]
     async fn test_domain_separation_leaf_prefix() {
       let data = 42u32.to_le_bytes();
-      let secure_hash = Sha256Merge::leaf_hash(&data).unwrap();
+      let secure_hash = DigestMerge::<Sha256>::leaf_hash(&data).unwrap();
 
       // Verify domain prefix changes output
       let mut hasher = Sha256::new();
@@ -289,7 +289,7 @@ cfg_if::cfg_if! {
       let right = [2u8; 32];
       let pos = 3u64;
 
-      let secure_hash = Sha256Merge::merge_pos(pos, &Output::<Sha256>::from(left), &Output::<Sha256>::from(right)).unwrap();
+      let secure_hash = DigestMerge::<Sha256>::merge_pos(pos, &Output::<Sha256>::from(left), &Output::<Sha256>::from(right)).unwrap();
 
       // Verify domain prefix changes output
       let mut hasher = Sha256::new();
@@ -305,12 +305,12 @@ cfg_if::cfg_if! {
     async fn test_domain_separation_no_collision() {
       // Craft a leaf value
       let leaf_data = 123u64.to_be_bytes();
-      let leaf_hash = Sha256Merge::leaf_hash(&leaf_data).unwrap();
+      let leaf_hash = DigestMerge::<Sha256>::leaf_hash(&leaf_data).unwrap();
 
       // Try to make it match a node hash by Copy (should fail due to domain prefix)
       let fake_left = leaf_hash;
       let fake_right = leaf_hash;
-      let node_hash = Sha256Merge::merge_pos(0, &fake_left, &fake_right).unwrap();
+      let node_hash = DigestMerge::<Sha256>::merge_pos(0, &fake_left, &fake_right).unwrap();
 
       // They must differ even if we try to match them
       assert_ne!(leaf_hash, node_hash);
