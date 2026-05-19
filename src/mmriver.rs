@@ -78,8 +78,13 @@ where
     while index_height_mmriver(i) > g {
       let left_pos = i - (2 << g);
       let right_pos = i - 1;
-      let left_elem = self.find_elem(left_pos, &elems).await?;
-      let right_elem = self.find_elem(right_pos, &elems).await?;
+      let (left_elem, right_elem) = futures_util::future::join(
+        self.find_elem(left_pos, &elems),
+        self.find_elem(right_pos, &elems),
+      )
+        .await;
+      let left_elem = left_elem?;
+      let right_elem = right_elem?;
       let parent_elem = M::merge_pos(i + 1, &left_elem, &right_elem)
         .map_err(Error::MergeError)?;
       elems.push(parent_elem);
