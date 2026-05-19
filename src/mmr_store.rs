@@ -43,17 +43,16 @@ impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
 
   pub async fn get_elems(
     &self,
-    positions: impl Iterator<Item = u64> + Send,
+    positions: Vec<u64>,
   ) -> Result<Vec<Option<Elem>>, Store::Error> {
-    let positions: Vec<u64> = positions.collect();
     let mut results: Vec<Option<Elem>> = vec![None; positions.len()];
     let mut missing_indices: Vec<usize> = Vec::new();
     let mut missing_positions: Vec<u64> = Vec::new();
 
-    for (i, pos) in positions.iter().enumerate() {
+    for (i, pos) in positions.into_iter().enumerate() {
       let found = self.memory_batch.iter().rev().any(|(start_pos, elems)| {
-        if *pos >= *start_pos && *pos < start_pos + elems.len() as u64 {
-          results[i] = Some(elems[(*pos - start_pos) as usize].clone());
+        if pos >= *start_pos && pos < start_pos + elems.len() as u64 {
+          results[i] = Some(elems[(pos - start_pos) as usize].clone());
           true
         } else {
           false
@@ -61,7 +60,7 @@ impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
       });
       if !found {
         missing_indices.push(i);
-        missing_positions.push(*pos);
+        missing_positions.push(pos);
       }
     }
 
@@ -106,8 +105,7 @@ pub trait MMRStoreReadOps<Elem: Send>: Send + Sync {
     positions: impl Iterator<Item = u64> + Send,
   ) -> impl Future<Output = Result<Vec<Option<Elem>>, Self::Error>> + Send {
     async move {
-      let positions: Vec<u64> = positions.collect();
-      let futures = positions.iter().map(|pos| self.get_elem(*pos));
+      let futures = positions.map(|pos| self.get_elem(pos));
       futures_util::future::join_all(futures)
         .await
         .into_iter()

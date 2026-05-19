@@ -117,17 +117,19 @@ impl Iterator for PeaksIter {
   type Item = u64;
 
   fn next(&mut self) -> Option<Self::Item> {
-    while self.peak_size > 0 {
+    let mut peak_opt = None;
+
+    while self.peak_size > 0 && peak_opt.is_none() {
       if self.pos >= self.peak_size {
         self.pos -= self.peak_size;
         let peak = self.peaks_sum + self.peak_size - 1;
         self.peaks_sum += self.peak_size;
-        self.peak_size >>= 1;
-        return Some(peak);
+        peak_opt = Some(peak);
       }
       self.peak_size >>= 1;
     }
-    None
+
+    peak_opt
   }
 
   fn size_hint(&self) -> (usize, Option<usize>) {
@@ -165,6 +167,7 @@ pub fn index_height_mmriver(i: u64) -> u8 {
   u64::BITS as u8 - pos.leading_zeros() as u8 - 1
 }
 
+#[derive(Clone)]
 pub struct PeaksMMRIVERIter {
   peak: u64,
   remaining: u64,
@@ -172,7 +175,10 @@ pub struct PeaksMMRIVERIter {
 
 impl PeaksMMRIVERIter {
   pub fn new(i: u64) -> Self {
-    Self { peak: 0, remaining: i + 1 }
+    Self {
+      peak: 0,
+      remaining: i + 1,
+    }
   }
 }
 
@@ -221,10 +227,4 @@ pub fn inclusion_proof_path(mut i: u64, c: u64) -> Vec<u64> {
     }
     g += 1;
   }
-}
-
-pub fn consistency_proof_paths(ifrom: u64, ito: u64) -> Vec<Vec<u64>> {
-  PeaksMMRIVERIter::new(ifrom)
-    .map(|ipeak| inclusion_proof_path(ipeak, ito))
-    .collect()
 }

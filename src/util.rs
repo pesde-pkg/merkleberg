@@ -33,14 +33,8 @@ impl<T: Clone + Send + Sync> MMRStoreReadOps<T> for MemStore<T> {
     &self,
     positions: impl Iterator<Item = u64> + Send,
   ) -> core::result::Result<Vec<Option<T>>, Self::Error> {
-    let positions: Vec<u64> = positions.collect();
     let store = self.0.read().unwrap();
-    Ok(
-      positions
-        .iter()
-        .map(|pos| store.get(pos).cloned())
-        .collect(),
-    )
+    Ok(positions.map(|pos| store.get(&pos).cloned()).collect())
   }
 }
 

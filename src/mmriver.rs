@@ -1,7 +1,7 @@
 use crate::Error;
 use crate::borrow::Cow;
 use crate::helper::{
-  consistency_proof_paths, index_height_mmriver, PeaksMMRIVERIter,
+  PeaksMMRIVERIter, inclusion_proof_path, index_height_mmriver,
 };
 use crate::merge::{Merge, MergeResult};
 use crate::mmr_store::{MMRBatch, MMRStoreReadOps, MMRStoreWriteOps};
@@ -100,7 +100,7 @@ where
     }
     let elems = self
       .batch
-      .get_elems(PeaksMMRIVERIter::new(self.mmr_size - 1))
+      .get_elems(PeaksMMRIVERIter::new(self.mmr_size - 1).collect())
       .await
       .map_err(Error::StoreError)?;
     let peaks: Vec<M::Item> = elems
@@ -143,18 +143,19 @@ where
     let ifrom = mmr_size_from - 1;
     let ito = self.mmr_size - 1;
 
-    let proof_indices = consistency_proof_paths(ifrom, ito);
+    let proof_indices = PeaksMMRIVERIter::new(ifrom)
+      .map(|ipeak| inclusion_proof_path(ipeak, ito));
 
     let all_elems = self
       .batch
-      .get_elems(proof_indices.iter().flatten().copied())
+      .get_elems(proof_indices.clone().flatten().collect())
       .await
       .map_err(Error::StoreError)?;
 
     let mut proof_paths: Vec<Vec<M::Item>> =
       Vec::with_capacity(proof_indices.len());
     let mut offset = 0;
-    for path_indices in &proof_indices {
+    for path_indices in proof_indices {
       let path_values: Vec<M::Item> = all_elems
         [offset..offset + path_indices.len()]
         .iter()
@@ -185,7 +186,7 @@ where
 
     let elems = self
       .batch
-      .get_elems(path_indices.into_iter())
+      .get_elems(path_indices)
       .await
       .map_err(Error::StoreError)?;
     let path_values: Vec<M::Item> = elems
@@ -300,7 +301,8 @@ where
     &self,
     old_accumulator: Vec<M::Item>,
   ) -> core::result::Result<Vec<M::Item>, Error<String>> {
-    let from_peaks: Vec<u64> = PeaksMMRIVERIter::new(self.mmr_size_from - 1).collect();
+    let from_peaks: Vec<u64> =
+      PeaksMMRIVERIter::new(self.mmr_size_from - 1).collect();
     if from_peaks.len() != old_accumulator.len()
       || from_peaks.len() != self.proof_paths.len()
     {

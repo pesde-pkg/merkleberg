@@ -115,7 +115,7 @@ where
     }
     let elems = self
       .batch
-      .get_elems(PeaksIter::new(self.mmr_size))
+      .get_elems(PeaksIter::new(self.mmr_size).collect())
       .await
       .map_err(Error::StoreError)?;
     let peaks: Vec<M::Item> = elems
