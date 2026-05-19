@@ -187,18 +187,3 @@ pub fn consistency_proof_paths(ifrom: u64, ito: u64) -> Vec<Vec<u64>> {
     .map(|ipeak| inclusion_proof_path(ipeak, ito))
     .collect()
 }
-
-#[cfg(feature = "sha2")]
-use sha2::{Digest, Sha256};
-
-#[cfg(feature = "sha2")]
-pub fn hash_pospair64(pos: u64, left: &[u8], right: &[u8]) -> [u8; 32] {
-  let mut hasher = Sha256::new();
-  hasher.update(pos.to_be_bytes());
-  hasher.update(left);
-  hasher.update(right);
-  let result = hasher.finalize();
-  let mut arr = [0u8; 32];
-  arr.copy_from_slice(&result);
-  arr
-}

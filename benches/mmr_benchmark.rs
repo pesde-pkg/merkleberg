@@ -34,6 +34,14 @@ struct MergeNumberHash;
 impl Merge for MergeNumberHash {
   type Item = NumberHash;
 
+  fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+    let mut hasher = new_blake2b();
+    let mut hash = [0u8; 32];
+    hasher.update(data);
+    hasher.finalize(&mut hash);
+    Ok(NumberHash(hash.to_vec().into()))
+  }
+
   fn merge_pos(
     _pos: u64,
     lhs: &Self::Item,
@@ -52,10 +60,10 @@ fn prepare_mmr(count: u32) -> (u64, MemStore<NumberHash>, Vec<u64>) {
   let rt = tokio::runtime::Runtime::new().unwrap();
   rt.block_on(async {
     let store = MemStore::default();
-    let mut mmr = MMR::<_, MergeNumberHash, _>::new(0, store);
+    let mut mmr = MMR::<MergeNumberHash, _>::new(0, store);
     let mut positions: Vec<u64> = Vec::new();
     for i in 0u32..count {
-      let pos = mmr.push(NumberHash::try_from(i).unwrap()).await.unwrap();
+      let pos = mmr.push(&i.to_le_bytes()).await.unwrap();
       positions.push(pos);
     }
     let mmr_size = mmr.mmr_size();
@@ -82,7 +90,7 @@ fn bench(c: &mut Criterion) {
   c.bench_function("MMR gen proof", |b| {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let (mmr_size, store, positions) = prepare_mmr(1_000_000);
-    let mmr = MMR::<_, MergeNumberHash, _>::new(mmr_size, store);
+    let mmr = MMR::<MergeNumberHash, _>::new(mmr_size, store);
     let mut rng = thread_rng();
     b.iter(|| {
       rt.block_on(async {
@@ -96,7 +104,7 @@ fn bench(c: &mut Criterion) {
   c.bench_function("MMR verify", |b| {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let (mmr_size, store, positions) = prepare_mmr(1_000_000);
-    let mmr = MMR::<_, MergeNumberHash, _>::new(mmr_size, store.clone());
+    let mmr = MMR::<MergeNumberHash, _>::new(mmr_size, store.clone());
     let mut rng = thread_rng();
     let root: NumberHash = rt.block_on(async { mmr.get_root().await.unwrap() });
     let proofs: Vec<_> = rt.block_on(async {

@@ -1,8 +1,8 @@
 use super::new_blake2b;
 use crate::MMR;
-use crate::InclusionProof;
 use crate::leaf_index_to_pos;
 use crate::merge::{Merge, MergeResult};
+use crate::mmr::InclusionProof;
 use crate::mmr_store::MMRStoreReadOps;
 use crate::util::MemStore;
 use bytes::{Bytes, BytesMut};
@@ -77,6 +77,27 @@ struct MergeHashWithTD;
 impl Merge for MergeHashWithTD {
   type Item = HashWithTD;
 
+  fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+    let mut hasher = new_blake2b();
+    let mut hash = [0u8; 32];
+    hasher.update(&[0x00]);
+    hasher.update(data);
+    hasher.finalize(&mut hash);
+
+    let td = if data.len() >= 40 {
+      let mut td_bytes = [0u8; 8];
+      td_bytes.copy_from_slice(&data[32..40]);
+      u64::from_le_bytes(td_bytes)
+    } else {
+      0
+    };
+
+    Ok(HashWithTD {
+      hash: hash.to_vec().into(),
+      td,
+    })
+  }
+
   fn merge_pos(
     _pos: u64,
     lhs: &Self::Item,
@@ -112,7 +133,7 @@ impl Prover {
   }
 
   async fn gen_blocks(&mut self, count: u64) {
-    let mut mmr = MMR::<_, MergeHashWithTD, _>::new(
+    let mut mmr = MMR::<MergeHashWithTD, _>::new(
       self.positions.len() as u64,
       self.store.clone(),
     );
@@ -125,7 +146,7 @@ impl Prover {
         td: genesis.difficulty,
       };
       self.headers.push((genesis, previous.td));
-      let pos = mmr.push(previous.clone()).await.unwrap();
+      let pos = mmr.push(&previous.serialize()).await.unwrap();
       self.positions.push(pos);
       previous
     };
@@ -141,7 +162,7 @@ impl Prover {
         hash: block.hash(),
         td: block.difficulty,
       };
-      let pos = mmr.push(previous.clone()).await.unwrap();
+      let pos = mmr.push(&previous.serialize()).await.unwrap();
       self.positions.push(pos);
       self.headers.push((block, previous.td));
     }
@@ -156,11 +177,14 @@ impl Prover {
     &self,
     number: u64,
     later_number: u64,
-  ) -> InclusionProof<HashWithTD, MergeHashWithTD> {
+  ) -> InclusionProof<MergeHashWithTD> {
     assert!(number < later_number);
     let pos = self.positions[number as usize];
     let later_pos = self.positions[later_number as usize];
-    let mmr = MMR::new(later_pos, self.store.clone());
+    let mmr = MMR::<MergeHashWithTD, MemStore<HashWithTD>>::new(
+      later_pos,
+      self.store.clone(),
+    );
     assert_eq!(
       mmr.get_root().await.unwrap().serialize(),
       self.headers[later_number as usize].0.chain_root
@@ -182,10 +206,14 @@ async fn test_insert_header() {
 
   let prove_elem = {
     let (header, td) = prover.get_header(h1);
-    HashWithTD {
-      hash: header.hash(),
-      td,
-    }
+    MergeHashWithTD::leaf_hash(
+      &HashWithTD {
+        hash: header.hash(),
+        td,
+      }
+      .serialize(),
+    )
+    .unwrap()
   };
   let root = {
     let (later_header, _later_td) = prover.get_header(h2);

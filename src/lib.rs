@@ -3,7 +3,7 @@
 mod error;
 pub mod helper;
 mod merge;
-mod mmr;
+pub mod mmr;
 mod mmr_store;
 mod mmriver;
 #[cfg(test)]
@@ -11,27 +11,40 @@ mod tests;
 pub mod util;
 
 pub use error::{Error, Result};
-#[cfg(feature = "sha2")]
-pub use helper::hash_pospair64;
 pub use helper::{leaf_index_to_mmr_size, leaf_index_to_pos};
-#[cfg(feature = "sha2")]
-pub use merge::Sha256Merge;
 pub use merge::{Merge, MergeResult};
-pub use mmr::MMR;
+pub use mmr::{InclusionProof, MMR};
 pub use mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
-pub use mmriver::{MMRIVER, included_root};
+pub use mmriver::{
+  ConsistencyProof, InclusionProof as MMRIVERInclusionProof, MMRIVER,
+  included_root,
+};
+
+#[cfg(feature = "digest")]
+pub use merge::DigestMerge;
+
+#[cfg(feature = "unsafe-digest")]
+#[allow(deprecated)]
+pub use merge::DigestMergeUnsafe;
+
+#[cfg(all(feature = "digest", feature = "sha2"))]
+pub use merge::Sha256Merge;
+
+#[cfg(all(feature = "unsafe-digest", feature = "sha2"))]
+#[allow(deprecated)]
+pub use merge::Sha256MergeUnsafe;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
-        use std::borrow;
-        use std::collections;
-        use std::vec;
-        use std::string;
-    } else {
-        extern crate alloc;
-        use alloc::borrow;
-        use alloc::collections;
-        use alloc::vec;
-        use alloc::string;
-    }
+  if #[cfg(feature = "std")] {
+    use std::borrow;
+    use std::collections;
+    use std::vec;
+    use std::string;
+  } else {
+    extern crate alloc;
+    use alloc::borrow;
+    use alloc::collections;
+    use alloc::vec;
+    use alloc::string;
+  }
 }

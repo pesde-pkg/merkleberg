@@ -1,4 +1,4 @@
-use super::{MergeNumberHash, NumberHash};
+use super::MergeNumberHash;
 use crate::{
   MMR,
   helper::{get_peak_map, get_peaks, pos_height_in_tree},
@@ -13,10 +13,10 @@ fn build_index_to_pos() -> Vec<u64> {
   let rt = tokio::runtime::Runtime::new().unwrap();
   rt.block_on(async {
     let store = MemStore::default();
-    let mut mmr = MMR::<_, MergeNumberHash, _>::new(0, store);
+    let mut mmr = MMR::<MergeNumberHash, _>::new(0, store);
     let mut positions = Vec::new();
     for i in 0u32..100_000 {
-      let pos = mmr.push(NumberHash::from(i)).await.unwrap();
+      let pos = mmr.push(&i.to_le_bytes()).await.unwrap();
       positions.push(pos);
     }
     positions
@@ -28,10 +28,10 @@ fn build_index_to_mmr_size() -> Vec<u64> {
   let rt = tokio::runtime::Runtime::new().unwrap();
   rt.block_on(async {
     let store = MemStore::default();
-    let mut mmr = MMR::<_, MergeNumberHash, _>::new(0, store);
+    let mut mmr = MMR::<MergeNumberHash, _>::new(0, store);
     let mut sizes = Vec::new();
     for i in 0u32..100_000 {
-      mmr.push(NumberHash::from(i)).await.unwrap();
+      mmr.push(&i.to_le_bytes()).await.unwrap();
       sizes.push(mmr.mmr_size());
     }
     sizes

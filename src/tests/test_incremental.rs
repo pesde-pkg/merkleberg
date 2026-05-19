@@ -1,6 +1,7 @@
 use proptest::proptest;
 
 use super::{MergeNumberHash, NumberHash};
+use crate::merge::Merge;
 use crate::util::{MemMMR, MemStore};
 
 proptest! {
@@ -14,13 +15,13 @@ proptest! {
 
 async fn test_incremental_with_params(start: u32, steps: usize, turns: usize) {
   let store = MemStore::default();
-  let mut mmr = MemMMR::<_, MergeNumberHash>::new(0, store);
+  let mut mmr = MemMMR::<MergeNumberHash>::new(0, store);
 
-  let mut curr = 0;
+  let mut curr: u32 = 0;
 
   let mut positions: Vec<u64> = Vec::new();
   for _ in 0u32..start {
-    let pos = mmr.push(NumberHash::from(curr)).await.unwrap();
+    let pos = mmr.push(&curr.to_le_bytes()).await.unwrap();
     curr += 1;
     positions.push(pos);
   }
@@ -31,8 +32,8 @@ async fn test_incremental_with_params(start: u32, steps: usize, turns: usize) {
     let mut new_positions: Vec<u64> = Vec::new();
     let mut leaves: Vec<NumberHash> = Vec::new();
     for _ in 0..steps {
-      let leaf = NumberHash::from(curr);
-      let pos = mmr.push(leaf.clone()).await.unwrap();
+      let leaf = MergeNumberHash::leaf_hash(&curr.to_le_bytes()).unwrap();
+      let pos = mmr.push(&curr.to_le_bytes()).await.unwrap();
       curr += 1;
       new_positions.push(pos);
       leaves.push(leaf);

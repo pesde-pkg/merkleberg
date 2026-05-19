@@ -43,6 +43,18 @@ impl NumberRange {
 impl Merge for MergeNumberRange {
   type Item = NumberRange;
 
+  fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+    let num = data
+      .get(..4)
+      .and_then(|b| b.try_into().ok())
+      .map(u32::from_le_bytes)
+      .unwrap_or(0);
+    Ok(Self::Item {
+      start: num,
+      end: num,
+    })
+  }
+
   fn merge_pos(
     _pos: u64,
     lhs: &Self::Item,
@@ -64,10 +76,10 @@ impl Merge for MergeNumberRange {
 
 async fn test_sequence_sub_func(count: u32, proof_elem: Vec<u32>) {
   let store = MemStore::default();
-  let mut mmr = MMR::<_, MergeNumberRange, _>::new(0, store);
+  let mut mmr = MMR::<MergeNumberRange, _>::new(0, store);
   let mut positions: Vec<u64> = Vec::new();
   for i in 0..count {
-    let pos = mmr.push(NumberRange::from(i)).await.expect("push");
+    let pos = mmr.push(&i.to_le_bytes()).await.expect("push");
     positions.push(pos);
   }
   let root = mmr.get_root().await.expect("get_root");
@@ -90,7 +102,12 @@ async fn test_sequence_sub_func(count: u32, proof_elem: Vec<u32>) {
       root,
       proof_elem
         .iter()
-        .map(|elem| (positions[*elem as usize], NumberRange::from(*elem)))
+        .map(|elem| {
+          (
+            positions[*elem as usize],
+            MergeNumberRange::leaf_hash(&elem.to_le_bytes()).unwrap(),
+          )
+        })
         .collect(),
     )
     .expect("verify");

@@ -1,4 +1,5 @@
 use crate::collections::BTreeMap;
+use crate::merge::Merge;
 use crate::mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
 use crate::vec::Vec;
 use std::sync::{Arc, RwLock};
@@ -45,4 +46,4 @@ impl<T: Send + Sync> MMRStoreWriteOps<T> for MemStore<T> {
   }
 }
 
-pub type MemMMR<T, M> = crate::MMR<T, M, MemStore<T>>;
+pub type MemMMR<M> = crate::MMR<M, MemStore<<M as Merge>::Item>>;

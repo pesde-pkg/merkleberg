@@ -1,9 +1,9 @@
 use super::{MergeNumberHash, NumberHash};
 use crate::Error;
-use crate::InclusionProof;
 use crate::helper::pos_height_in_tree;
 use crate::leaf_index_to_mmr_size;
 use crate::merge::{Merge, MergeResult};
+use crate::mmr::InclusionProof;
 use crate::util::{MemMMR, MemStore};
 use faster_hex::hex_string;
 use proptest::prelude::*;
@@ -11,10 +11,10 @@ use rand::{Rng, seq::SliceRandom, thread_rng};
 
 async fn test_mmr(count: u32, proof_elem: Vec<u32>) {
   let store = MemStore::default();
-  let mut mmr = MemMMR::<_, MergeNumberHash>::new(0, store);
+  let mut mmr = MemMMR::<MergeNumberHash>::new(0, store);
   let mut positions: Vec<u64> = Vec::new();
   for i in 0u32..count {
-    let pos = mmr.push(NumberHash::from(i)).await.unwrap();
+    let pos = mmr.push(&i.to_le_bytes()).await.unwrap();
     positions.push(pos);
   }
   let root = mmr.get_root().await.expect("get root");
@@ -33,7 +33,12 @@ async fn test_mmr(count: u32, proof_elem: Vec<u32>) {
       root,
       proof_elem
         .iter()
-        .map(|elem| (positions[*elem as usize], NumberHash::from(*elem)))
+        .map(|elem| {
+          (
+            positions[*elem as usize],
+            MergeNumberHash::leaf_hash(&elem.to_le_bytes()).unwrap(),
+          )
+        })
         .collect(),
     )
     .unwrap();
@@ -42,17 +47,17 @@ async fn test_mmr(count: u32, proof_elem: Vec<u32>) {
 
 async fn test_gen_new_root_from_proof(count: u32) {
   let store = MemStore::default();
-  let mut mmr = MemMMR::<_, MergeNumberHash>::new(0, store);
+  let mut mmr = MemMMR::<MergeNumberHash>::new(0, store);
   let mut positions: Vec<u64> = Vec::new();
   for i in 0u32..count {
-    let pos = mmr.push(NumberHash::from(i)).await.unwrap();
+    let pos = mmr.push(&i.to_le_bytes()).await.unwrap();
     positions.push(pos);
   }
   let elem = count - 1;
   let pos = positions[elem as usize];
   let proof = mmr.gen_proof(vec![pos]).await.expect("gen proof");
   let new_elem = count;
-  let new_pos = mmr.push(NumberHash::from(new_elem)).await.unwrap();
+  let new_pos = mmr.push(&new_elem.to_le_bytes()).await.unwrap();
   let root = mmr.get_root().await.expect("get root");
   mmr.commit().await.expect("commit changes");
   let calculated_root = proof
@@ -69,9 +74,9 @@ async fn test_gen_new_root_from_proof(count: u32) {
 #[tokio::test]
 async fn test_mmr_root() {
   let store = MemStore::default();
-  let mut mmr = MemMMR::<_, MergeNumberHash>::new(0, store);
+  let mut mmr = MemMMR::<MergeNumberHash>::new(0, store);
   for i in 0u32..11 {
-    mmr.push(NumberHash::from(i)).await.unwrap();
+    mmr.push(&i.to_le_bytes()).await.unwrap();
   }
   let root = mmr.get_root().await.expect("get root");
   let hex_root = hex_string(&root.0);
@@ -84,7 +89,7 @@ async fn test_mmr_root() {
 #[tokio::test]
 async fn test_empty_mmr_root() {
   let store = MemStore::<NumberHash>::default();
-  let mmr = MemMMR::<_, MergeNumberHash>::new(0, store);
+  let mmr = MemMMR::<MergeNumberHash>::new(0, store);
   assert_eq!(Err(Error::GetRootOnEmpty), mmr.get_root().await);
 }
 
@@ -184,6 +189,15 @@ async fn test_invalid_proof_verification(
   impl Merge for MyMerge {
     type Item = MyItem;
 
+    fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+      let num = data
+        .get(..4)
+        .and_then(|b| b.try_into().ok())
+        .map(u32::from_le_bytes)
+        .unwrap_or(0);
+      Ok(MyItem::Number(num))
+    }
+
     fn merge_pos(
       _pos: u64,
       lhs: &Self::Item,
@@ -194,10 +208,10 @@ async fn test_invalid_proof_verification(
   }
 
   let store = MemStore::default();
-  let mut mmr = MemMMR::<_, MyMerge>::new(0, store);
+  let mut mmr = MemMMR::<MyMerge>::new(0, store);
   let mut positions: Vec<u64> = Vec::new();
   for i in 0u32..leaf_count {
-    let pos = mmr.push(MyItem::Number(i)).await.unwrap();
+    let pos = mmr.push(&i.to_le_bytes()).await.unwrap();
     positions.push(pos);
   }
   let root = mmr.get_root().await.unwrap();
@@ -216,7 +230,7 @@ async fn test_invalid_proof_verification(
     )
   });
 
-  let handrolled_proof: Option<InclusionProof<MyItem, MyMerge>> =
+  let handrolled_proof: Option<InclusionProof<MyMerge>> =
     if let Some(handrolled_proof_positions) = handrolled_proof_positions {
       let mut proof_elems: Vec<MyItem> = Vec::new();
       for pos in &handrolled_proof_positions {

@@ -10,13 +10,13 @@ use crate::vec;
 use crate::vec::Vec;
 use core::marker::PhantomData;
 
-pub struct MMRIVER<T, M, S> {
+pub struct MMRIVER<M: Merge, S> {
   mmr_size: u64,
-  batch: MMRBatch<T, S>,
+  batch: MMRBatch<M::Item, S>,
   _merge: PhantomData<M>,
 }
 
-impl<T, M, S> MMRIVER<T, M, S> {
+impl<M: Merge, S> MMRIVER<M, S> {
   pub fn new(mmr_size: u64, store: S) -> Self {
     MMRIVER {
       mmr_size,
@@ -33,7 +33,7 @@ impl<T, M, S> MMRIVER<T, M, S> {
     self.mmr_size == 0
   }
 
-  pub fn batch(&self) -> &MMRBatch<T, S> {
+  pub fn batch(&self) -> &MMRBatch<M::Item, S> {
     &self.batch
   }
 
@@ -42,17 +42,15 @@ impl<T, M, S> MMRIVER<T, M, S> {
   }
 }
 
-impl<
-  T: Clone + PartialEq + Send + Sync,
-  M: Merge<Item = T>,
-  S: MMRStoreReadOps<T>,
-> MMRIVER<T, M, S>
+impl<M: Merge, S: MMRStoreReadOps<M::Item>> MMRIVER<M, S>
+where
+  M::Item: Clone + PartialEq + Send + Sync,
 {
   async fn find_elem<'b>(
     &self,
     pos: u64,
-    hashes: &'b [T],
-  ) -> core::result::Result<Cow<'b, T>, Error<S::Error>> {
+    hashes: &'b [M::Item],
+  ) -> core::result::Result<Cow<'b, M::Item>, Error<S::Error>> {
     let pos_offset = pos.checked_sub(self.mmr_size);
     if let Some(elem) = pos_offset.and_then(|i| hashes.get(i as usize)) {
       return Ok(Cow::Borrowed(elem));
@@ -69,8 +67,9 @@ impl<
 
   pub async fn push(
     &mut self,
-    elem: T,
+    data: &[u8],
   ) -> core::result::Result<u64, Error<S::Error>> {
+    let elem = M::leaf_hash(data).map_err(Error::MergeError)?;
     let elem_pos = self.mmr_size;
     let mut elems = vec![elem];
     let mut i = self.mmr_size + 1;
@@ -95,12 +94,12 @@ impl<
 
   pub async fn get_accumulator(
     &self,
-  ) -> core::result::Result<Vec<T>, Error<S::Error>> {
+  ) -> core::result::Result<Vec<M::Item>, Error<S::Error>> {
     if self.mmr_size == 0 {
       return Err(Error::GetRootOnEmpty);
     }
     let peak_positions = peaks_mmriver(self.mmr_size - 1);
-    let mut peaks: Vec<T> = Vec::with_capacity(peak_positions.len());
+    let mut peaks: Vec<M::Item> = Vec::with_capacity(peak_positions.len());
     for peak_pos in peak_positions {
       let elem = self
         .batch
@@ -113,7 +112,9 @@ impl<
     Ok(peaks)
   }
 
-  pub async fn get_root(&self) -> core::result::Result<T, Error<S::Error>> {
+  pub async fn get_root(
+    &self,
+  ) -> core::result::Result<M::Item, Error<S::Error>> {
     let peaks = self.get_accumulator().await?;
     self
       .bag_rhs_peaks(peaks)
@@ -121,7 +122,10 @@ impl<
       .ok_or(Error::InconsistentStore)
   }
 
-  fn bag_rhs_peaks(&self, mut rhs_peaks: Vec<T>) -> MergeResult<Option<T>> {
+  fn bag_rhs_peaks(
+    &self,
+    mut rhs_peaks: Vec<M::Item>,
+  ) -> MergeResult<Option<M::Item>> {
     while rhs_peaks.len() > 1 {
       let right_peak = rhs_peaks.pop().expect("pop");
       let left_peak = rhs_peaks.pop().expect("pop");
@@ -133,7 +137,7 @@ impl<
   pub async fn gen_consistency_proof(
     &self,
     mmr_size_from: u64,
-  ) -> core::result::Result<ConsistencyProof<T, M>, Error<S::Error>> {
+  ) -> core::result::Result<ConsistencyProof<M>, Error<S::Error>> {
     if mmr_size_from == 0 || mmr_size_from > self.mmr_size {
       return Err(Error::GenProofForInvalidLeaves);
     }
@@ -142,10 +146,12 @@ impl<
     let ito = self.mmr_size - 1;
 
     let proof_indices = consistency_proof_paths(ifrom, ito);
-    let mut proof_paths: Vec<Vec<T>> = Vec::with_capacity(proof_indices.len());
+    let mut proof_paths: Vec<Vec<M::Item>> =
+      Vec::with_capacity(proof_indices.len());
 
     for path_indices in proof_indices {
-      let mut path_values: Vec<T> = Vec::with_capacity(path_indices.len());
+      let mut path_values: Vec<M::Item> =
+        Vec::with_capacity(path_indices.len());
       for idx in path_indices {
         let elem = self
           .batch
@@ -168,7 +174,7 @@ impl<
   pub async fn gen_inclusion_proof(
     &self,
     i: u64,
-  ) -> core::result::Result<InclusionProof<T, M>, Error<S::Error>> {
+  ) -> core::result::Result<InclusionProof<M>, Error<S::Error>> {
     if i >= self.mmr_size {
       return Err(Error::GenProofForInvalidLeaves);
     }
@@ -176,7 +182,7 @@ impl<
     let c = self.mmr_size - 1;
     let path_indices = crate::helper::inclusion_proof_path(i, c);
 
-    let mut path_values: Vec<T> = Vec::with_capacity(path_indices.len());
+    let mut path_values: Vec<M::Item> = Vec::with_capacity(path_indices.len());
     for idx in path_indices {
       let elem = self
         .batch
@@ -191,21 +197,27 @@ impl<
   }
 }
 
-impl<T: Send, M, S: MMRStoreWriteOps<T>> MMRIVER<T, M, S> {
+impl<M: Merge, S: MMRStoreWriteOps<M::Item>> MMRIVER<M, S>
+where
+  M::Item: Send,
+{
   pub async fn commit(&mut self) -> core::result::Result<(), Error<S::Error>> {
     self.batch.commit().await.map_err(Error::StoreError)
   }
 }
 
 #[derive(Debug)]
-pub struct InclusionProof<T, M> {
+pub struct InclusionProof<M: Merge> {
   index: u64,
-  proof: Vec<T>,
+  proof: Vec<M::Item>,
   _merge: PhantomData<M>,
 }
 
-impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
-  pub fn new(index: u64, proof: Vec<T>) -> Self {
+impl<M: Merge> InclusionProof<M>
+where
+  M::Item: Clone + PartialEq,
+{
+  pub fn new(index: u64, proof: Vec<M::Item>) -> Self {
     InclusionProof {
       index,
       proof,
@@ -217,17 +229,17 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
     self.index
   }
 
-  pub fn proof(&self) -> &[T] {
+  pub fn proof(&self) -> &[M::Item] {
     &self.proof
   }
 
-  pub fn included_root(&self, nodehash: T) -> MergeResult<T> {
-    included_root::<M, T>(self.index, nodehash, &self.proof)
+  pub fn included_root(&self, nodehash: M::Item) -> MergeResult<M::Item> {
+    included_root::<M>(self.index, nodehash, &self.proof)
   }
 
   pub fn verify(
     &self,
-    accumulator: &[T],
+    accumulator: &[M::Item],
   ) -> core::result::Result<bool, Error<String>> {
     let root = self
       .included_root(self.proof.last().cloned().ok_or(Error::CorruptedProof)?)
@@ -248,18 +260,21 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
 }
 
 #[derive(Debug)]
-pub struct ConsistencyProof<T, M> {
+pub struct ConsistencyProof<M: Merge> {
   mmr_size_from: u64,
   mmr_size_to: u64,
-  proof_paths: Vec<Vec<T>>,
+  proof_paths: Vec<Vec<M::Item>>,
   _merge: PhantomData<M>,
 }
 
-impl<T: Clone + PartialEq, M: Merge<Item = T>> ConsistencyProof<T, M> {
+impl<M: Merge> ConsistencyProof<M>
+where
+  M::Item: Clone + PartialEq,
+{
   pub fn new(
     mmr_size_from: u64,
     mmr_size_to: u64,
-    proof_paths: Vec<Vec<T>>,
+    proof_paths: Vec<Vec<M::Item>>,
   ) -> Self {
     ConsistencyProof {
       mmr_size_from,
@@ -277,14 +292,14 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> ConsistencyProof<T, M> {
     self.mmr_size_to
   }
 
-  pub fn proof_paths(&self) -> &[Vec<T>] {
+  pub fn proof_paths(&self) -> &[Vec<M::Item>] {
     &self.proof_paths
   }
 
   pub fn consistent_roots(
     &self,
-    old_accumulator: Vec<T>,
-  ) -> core::result::Result<Vec<T>, Error<String>> {
+    old_accumulator: Vec<M::Item>,
+  ) -> core::result::Result<Vec<M::Item>, Error<String>> {
     let from_peaks = peaks_mmriver(self.mmr_size_from - 1);
     if from_peaks.len() != old_accumulator.len()
       || from_peaks.len() != self.proof_paths.len()
@@ -292,9 +307,9 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> ConsistencyProof<T, M> {
       return Err(Error::CorruptedProof);
     }
 
-    let mut roots: Vec<T> = Vec::new();
+    let mut roots: Vec<M::Item> = Vec::new();
     for i in 0..from_peaks.len() {
-      let root = included_root::<M, T>(
+      let root = included_root::<M>(
         from_peaks[i],
         old_accumulator[i].clone(),
         &self.proof_paths[i],
@@ -310,8 +325,8 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> ConsistencyProof<T, M> {
 
   pub fn verify(
     &self,
-    old_accumulator: Vec<T>,
-    new_accumulator: &[T],
+    old_accumulator: Vec<M::Item>,
+    new_accumulator: &[M::Item],
   ) -> core::result::Result<bool, Error<String>> {
     let proven = self.consistent_roots(old_accumulator)?;
 
@@ -332,11 +347,14 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> ConsistencyProof<T, M> {
   }
 }
 
-pub fn included_root<M: Merge<Item = T>, T: Clone>(
+pub fn included_root<M: Merge>(
   i: u64,
-  nodehash: T,
-  proof: &[T],
-) -> MergeResult<T> {
+  nodehash: M::Item,
+  proof: &[M::Item],
+) -> MergeResult<M::Item>
+where
+  M::Item: Clone,
+{
   let mut root = nodehash;
   let mut g = index_height_mmriver(i);
   let mut current_i = i;

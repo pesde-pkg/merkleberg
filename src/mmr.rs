@@ -21,13 +21,13 @@ use core::marker::PhantomData;
 use core::mem;
 
 #[allow(clippy::upper_case_acronyms)]
-pub struct MMR<T, M, S> {
+pub struct MMR<M: Merge, S> {
   mmr_size: u64,
-  batch: MMRBatch<T, S>,
+  batch: MMRBatch<M::Item, S>,
   merge: PhantomData<M>,
 }
 
-impl<T, M, S> MMR<T, M, S> {
+impl<M: Merge, S> MMR<M, S> {
   pub fn new(mmr_size: u64, store: S) -> Self {
     MMR {
       mmr_size,
@@ -44,7 +44,7 @@ impl<T, M, S> MMR<T, M, S> {
     self.mmr_size == 0
   }
 
-  pub fn batch(&self) -> &MMRBatch<T, S> {
+  pub fn batch(&self) -> &MMRBatch<M::Item, S> {
     &self.batch
   }
 
@@ -53,17 +53,15 @@ impl<T, M, S> MMR<T, M, S> {
   }
 }
 
-impl<
-  T: Clone + PartialEq + Send + Sync,
-  M: Merge<Item = T>,
-  S: MMRStoreReadOps<T>,
-> MMR<T, M, S>
+impl<M: Merge, S: MMRStoreReadOps<M::Item>> MMR<M, S>
+where
+  M::Item: Clone + PartialEq + Send + Sync,
 {
   async fn find_elem<'b>(
     &self,
     pos: u64,
-    hashes: &'b [T],
-  ) -> core::result::Result<Cow<'b, T>, Error<S::Error>> {
+    hashes: &'b [M::Item],
+  ) -> core::result::Result<Cow<'b, M::Item>, Error<S::Error>> {
     let pos_offset = pos.checked_sub(self.mmr_size);
     if let Some(elem) = pos_offset.and_then(|i| hashes.get(i as usize)) {
       return Ok(Cow::Borrowed(elem));
@@ -79,8 +77,9 @@ impl<
 
   pub async fn push(
     &mut self,
-    elem: T,
+    data: &[u8],
   ) -> core::result::Result<u64, Error<S::Error>> {
+    let elem = M::leaf_hash(data).map_err(Error::MergeError)?;
     let mut elems = vec![elem];
     let elem_pos = self.mmr_size;
     let peak_map = get_peak_map(self.mmr_size);
@@ -101,7 +100,9 @@ impl<
     Ok(elem_pos)
   }
 
-  pub async fn get_root(&self) -> core::result::Result<T, Error<S::Error>> {
+  pub async fn get_root(
+    &self,
+  ) -> core::result::Result<M::Item, Error<S::Error>> {
     if self.mmr_size == 0 {
       return Err(Error::GetRootOnEmpty);
     } else if self.mmr_size == 1 {
@@ -113,7 +114,7 @@ impl<
         .ok_or(Error::InconsistentStore);
     }
     let peak_positions = get_peaks(self.mmr_size);
-    let mut peaks: Vec<T> = Vec::with_capacity(peak_positions.len());
+    let mut peaks: Vec<M::Item> = Vec::with_capacity(peak_positions.len());
     for peak_pos in peak_positions {
       let elem = self
         .batch
@@ -129,7 +130,10 @@ impl<
       .ok_or(Error::InconsistentStore)
   }
 
-  fn bag_rhs_peaks(&self, mut rhs_peaks: Vec<T>) -> MergeResult<Option<T>> {
+  fn bag_rhs_peaks(
+    &self,
+    mut rhs_peaks: Vec<M::Item>,
+  ) -> MergeResult<Option<M::Item>> {
     while rhs_peaks.len() > 1 {
       let right_peak = rhs_peaks.pop().expect("pop");
       let left_peak = rhs_peaks.pop().expect("pop");
@@ -140,7 +144,7 @@ impl<
 
   async fn gen_proof_for_peak(
     &self,
-    proof: &mut Vec<T>,
+    proof: &mut Vec<M::Item>,
     pos_list: Vec<u64>,
     peak_pos: u64,
   ) -> core::result::Result<(), Error<S::Error>> {
@@ -204,7 +208,7 @@ impl<
   pub async fn gen_proof(
     &self,
     mut pos_list: Vec<u64>,
-  ) -> core::result::Result<InclusionProof<T, M>, Error<S::Error>> {
+  ) -> core::result::Result<InclusionProof<M>, Error<S::Error>> {
     if pos_list.is_empty() {
       return Err(Error::GenProofForInvalidLeaves);
     }
@@ -217,7 +221,7 @@ impl<
     pos_list.sort_unstable();
     pos_list.dedup();
     let peaks = get_peaks(self.mmr_size);
-    let mut proof: Vec<T> = Vec::new();
+    let mut proof: Vec<M::Item> = Vec::new();
     let mut bagging_track = 0;
     for peak_pos in peaks {
       let pos_list: Vec<_> =
@@ -250,21 +254,27 @@ impl<
   }
 }
 
-impl<T: Send, M, S: MMRStoreWriteOps<T>> MMR<T, M, S> {
+impl<M: Merge, S: MMRStoreWriteOps<M::Item>> MMR<M, S>
+where
+  M::Item: Send,
+{
   pub async fn commit(&mut self) -> core::result::Result<(), Error<S::Error>> {
     self.batch.commit().await.map_err(Error::StoreError)
   }
 }
 
 #[derive(Debug)]
-pub struct InclusionProof<T, M> {
+pub struct InclusionProof<M: Merge> {
   mmr_size: u64,
-  proof: Vec<T>,
+  proof: Vec<M::Item>,
   merge: PhantomData<M>,
 }
 
-impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
-  pub fn new(mmr_size: u64, proof: Vec<T>) -> Self {
+impl<M: Merge> InclusionProof<M>
+where
+  M::Item: Clone + PartialEq,
+{
+  pub fn new(mmr_size: u64, proof: Vec<M::Item>) -> Self {
     InclusionProof {
       mmr_size,
       proof,
@@ -276,25 +286,28 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
     self.mmr_size
   }
 
-  pub fn proof_items(&self) -> &[T] {
+  pub fn proof_items(&self) -> &[M::Item] {
     &self.proof
   }
 
-  pub fn calculate_root(&self, leaves: Vec<(u64, T)>) -> MergeResult<T> {
-    calculate_root::<_, M, _>(leaves, self.mmr_size, self.proof.iter())
+  pub fn calculate_root(
+    &self,
+    leaves: Vec<(u64, M::Item)>,
+  ) -> MergeResult<M::Item> {
+    calculate_root::<M, _>(leaves, self.mmr_size, self.proof.iter())
   }
 
   pub fn calculate_root_with_new_leaf(
     &self,
-    mut leaves: Vec<(u64, T)>,
+    mut leaves: Vec<(u64, M::Item)>,
     new_pos: u64,
-    new_elem: T,
+    new_elem: M::Item,
     new_mmr_size: u64,
-  ) -> MergeResult<T> {
+  ) -> MergeResult<M::Item> {
     let pos_height = pos_height_in_tree(new_pos);
     let next_height = pos_height_in_tree(new_pos + 1);
     if next_height > pos_height {
-      let mut peaks_hashes = calculate_peaks_hashes::<_, M, _>(
+      let mut peaks_hashes = calculate_peaks_hashes::<M, _>(
         leaves,
         self.mmr_size,
         self.proof.iter(),
@@ -305,18 +318,22 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
         i += 1
       }
       peaks_hashes[i..].reverse();
-      calculate_root::<_, M, _>(
+      calculate_root::<M, _>(
         vec![(new_pos, new_elem)],
         new_mmr_size,
         peaks_hashes.iter(),
       )
     } else {
       leaves.push((new_pos, new_elem));
-      calculate_root::<_, M, _>(leaves, new_mmr_size, self.proof.iter())
+      calculate_root::<M, _>(leaves, new_mmr_size, self.proof.iter())
     }
   }
 
-  pub fn verify(&self, root: T, leaves: Vec<(u64, T)>) -> MergeResult<bool> {
+  pub fn verify(
+    &self,
+    root: M::Item,
+    leaves: Vec<(u64, M::Item)>,
+  ) -> MergeResult<bool> {
     self
       .calculate_root(leaves)
       .map(|calculated_root| calculated_root == root)
@@ -324,9 +341,9 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
 
   pub fn verify_incremental(
     &self,
-    root: T,
-    prev_root: T,
-    incremental: Vec<T>,
+    root: M::Item,
+    prev_root: M::Item,
+    incremental: Vec<M::Item>,
   ) -> core::result::Result<bool, Error<String>> {
     let current_leaves_count = get_peak_map(self.mmr_size);
     if current_leaves_count <= incremental.len() as u64 {
@@ -357,7 +374,7 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
     prev_peaks.extend(reverse_peaks);
 
     let calculated_prev_root =
-      bagging_peaks_hashes::<T, M>(prev_peaks).map_err(Error::MergeError)?;
+      bagging_peaks_hashes::<M>(prev_peaks).map_err(Error::MergeError)?;
     if calculated_prev_root != prev_root {
       return Ok(false);
     }
@@ -374,16 +391,14 @@ impl<T: Clone + PartialEq, M: Merge<Item = T>> InclusionProof<T, M> {
   }
 }
 
-fn calculate_peak_root<
-  'a,
-  T: 'a,
-  M: Merge<Item = T>,
-  I: Iterator<Item = &'a T>,
->(
-  leaves: Vec<(u64, T)>,
+fn calculate_peak_root<'a, M: Merge, I: Iterator<Item = &'a M::Item>>(
+  leaves: Vec<(u64, M::Item)>,
   peak_pos: u64,
   proof_iter: &mut I,
-) -> MergeResult<T> {
+) -> MergeResult<M::Item>
+where
+  M::Item: 'a + Clone,
+{
   debug_assert!(!leaves.is_empty(), "can't be empty");
 
   let mut queue: VecDeque<_> = leaves
@@ -440,16 +455,14 @@ fn calculate_peak_root<
   Err("Corrupted proof".into())
 }
 
-fn calculate_peaks_hashes<
-  'a,
-  T: 'a + Clone,
-  M: Merge<Item = T>,
-  I: Iterator<Item = &'a T>,
->(
-  mut leaves: Vec<(u64, T)>,
+fn calculate_peaks_hashes<'a, M: Merge, I: Iterator<Item = &'a M::Item>>(
+  mut leaves: Vec<(u64, M::Item)>,
   mmr_size: u64,
   mut proof_iter: I,
-) -> MergeResult<Vec<T>> {
+) -> MergeResult<Vec<M::Item>>
+where
+  M::Item: 'a + Clone,
+{
   if leaves.iter().any(|(pos, _)| pos_height_in_tree(*pos) > 0) {
     return Err("Node proofs not supported".into());
   }
@@ -461,7 +474,7 @@ fn calculate_peaks_hashes<
   leaves.dedup_by(|a, b| a.0 == b.0);
   let peaks = get_peaks(mmr_size);
 
-  let mut peaks_hashes: Vec<T> = Vec::with_capacity(peaks.len() + 1);
+  let mut peaks_hashes: Vec<M::Item> = Vec::with_capacity(peaks.len() + 1);
   for peak_pos in peaks {
     let mut leaves: Vec<_> =
       take_while_vec(&mut leaves, |(pos, _)| *pos <= peak_pos);
@@ -474,7 +487,7 @@ fn calculate_peaks_hashes<
         break;
       }
     } else {
-      calculate_peak_root::<_, M, _>(leaves, peak_pos, &mut proof_iter)?
+      calculate_peak_root::<M, _>(leaves, peak_pos, &mut proof_iter)?
     };
     peaks_hashes.push(peak_root.clone());
   }
@@ -492,9 +505,9 @@ fn calculate_peaks_hashes<
   Ok(peaks_hashes)
 }
 
-fn bagging_peaks_hashes<T, M: Merge<Item = T>>(
-  mut peaks_hashes: Vec<T>,
-) -> MergeResult<T> {
+fn bagging_peaks_hashes<M: Merge>(
+  mut peaks_hashes: Vec<M::Item>,
+) -> MergeResult<M::Item> {
   while peaks_hashes.len() > 1 {
     let right_peak = peaks_hashes.pop().expect("pop");
     let left_peak = peaks_hashes.pop().expect("pop");
@@ -503,19 +516,17 @@ fn bagging_peaks_hashes<T, M: Merge<Item = T>>(
   peaks_hashes.pop().ok_or("Corrupted proof".into())
 }
 
-fn calculate_root<
-  'a,
-  T: 'a + Clone,
-  M: Merge<Item = T>,
-  I: Iterator<Item = &'a T>,
->(
-  leaves: Vec<(u64, T)>,
+fn calculate_root<'a, M: Merge, I: Iterator<Item = &'a M::Item>>(
+  leaves: Vec<(u64, M::Item)>,
   mmr_size: u64,
   proof_iter: I,
-) -> MergeResult<T> {
+) -> MergeResult<M::Item>
+where
+  M::Item: 'a + Clone,
+{
   let peaks_hashes =
-    calculate_peaks_hashes::<_, M, _>(leaves, mmr_size, proof_iter)?;
-  bagging_peaks_hashes::<_, M>(peaks_hashes)
+    calculate_peaks_hashes::<M, _>(leaves, mmr_size, proof_iter)?;
+  bagging_peaks_hashes::<M>(peaks_hashes)
 }
 
 fn take_while_vec<T, P: Fn(&T) -> bool>(v: &mut Vec<T>, p: P) -> Vec<T> {
