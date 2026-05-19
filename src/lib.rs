@@ -14,7 +14,7 @@ pub use error::{Error, Result};
 pub use helper::{
   PeaksIter, PeaksMMRIVERIter, leaf_index_to_mmr_size, leaf_index_to_pos,
 };
-pub use merge::{Merge, MergeResult};
+pub use merge::Merge;
 pub use mmr::{InclusionProof, MMR};
 pub use mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
 pub use mmriver::{
@@ -34,7 +34,6 @@ cfg_if::cfg_if! {
     use std::borrow;
     use std::collections;
     use std::vec;
-    use std::string;
   } else {
     extern crate alloc;
     use alloc::borrow;

@@ -4,11 +4,9 @@ extern crate criterion;
 use criterion::{BenchmarkId, Criterion};
 
 use bytes::Bytes;
-use merkleberg::{
-  Error, MMR, MMRStoreReadOps, Merge, MergeResult, util::MemStore,
-};
+use merkleberg::{Error, MMR, MMRStoreReadOps, Merge, util::MemStore};
 use rand::{seq::SliceRandom, thread_rng};
-use std::convert::TryFrom;
+use std::convert::{Infallible, TryFrom};
 
 use blake2b_rs::{Blake2b, Blake2bBuilder};
 
@@ -20,7 +18,7 @@ fn new_blake2b() -> Blake2b {
 struct NumberHash(pub Bytes);
 impl TryFrom<u32> for NumberHash {
   type Error = Error;
-  fn try_from(num: u32) -> core::result::Result<Self, Error> {
+  fn try_from(num: u32) -> Result<Self, Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&num.to_le_bytes());
@@ -33,8 +31,9 @@ struct MergeNumberHash;
 
 impl Merge for MergeNumberHash {
   type Item = NumberHash;
+  type Error = Infallible;
 
-  fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+  fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(data);
@@ -46,7 +45,7 @@ impl Merge for MergeNumberHash {
     _pos: u64,
     lhs: &Self::Item,
     rhs: &Self::Item,
-  ) -> MergeResult<Self::Item> {
+  ) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&lhs.0);

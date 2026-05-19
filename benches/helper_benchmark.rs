@@ -3,8 +3,8 @@ extern crate criterion;
 use criterion::Criterion;
 
 use merkleberg::helper::{
-  inclusion_proof_path, index_height_mmriver, leaf_index_to_mmr_size,
-  leaf_index_to_pos, PeaksMMRIVERIter
+  PeaksMMRIVERIter, inclusion_proof_path, index_height_mmriver,
+  leaf_index_to_mmr_size, leaf_index_to_pos,
 };
 use rand::{Rng, thread_rng};
 

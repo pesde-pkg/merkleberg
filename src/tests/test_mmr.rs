@@ -1,8 +1,10 @@
+use std::convert::Infallible;
+
 use super::{MergeNumberHash, NumberHash};
 use crate::Error;
 use crate::helper::pos_height_in_tree;
 use crate::leaf_index_to_mmr_size;
-use crate::merge::{Merge, MergeResult};
+use crate::merge::Merge;
 use crate::mmr::InclusionProof;
 use crate::util::{MemMMR, MemStore};
 use faster_hex::hex_string;
@@ -188,8 +190,9 @@ async fn test_invalid_proof_verification(
 
   impl Merge for MyMerge {
     type Item = MyItem;
+    type Error = Infallible;
 
-    fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+    fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
       let num = data
         .get(..4)
         .and_then(|b| b.try_into().ok())
@@ -202,7 +205,7 @@ async fn test_invalid_proof_verification(
       _pos: u64,
       lhs: &Self::Item,
       rhs: &Self::Item,
-    ) -> MergeResult<Self::Item> {
+    ) -> Result<Self::Item, Self::Error> {
       Ok(MyItem::Merged(Box::new(lhs.clone()), Box::new(rhs.clone())))
     }
   }

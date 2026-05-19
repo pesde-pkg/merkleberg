@@ -5,8 +5,9 @@ mod test_mmr;
 mod test_mmriver;
 mod test_sequence;
 
+use std::convert::Infallible;
+
 use crate::Merge;
-use crate::merge::MergeResult;
 use blake2b_rs::{Blake2b, Blake2bBuilder};
 use bytes::Bytes;
 
@@ -30,8 +31,9 @@ struct MergeNumberHash;
 
 impl Merge for MergeNumberHash {
   type Item = NumberHash;
+  type Error = Infallible;
 
-  fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+  fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(data);
@@ -43,7 +45,7 @@ impl Merge for MergeNumberHash {
     _pos: u64,
     lhs: &Self::Item,
     rhs: &Self::Item,
-  ) -> MergeResult<Self::Item> {
+  ) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&lhs.0);

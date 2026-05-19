@@ -1,11 +1,12 @@
 use super::new_blake2b;
 use crate::MMR;
 use crate::leaf_index_to_pos;
-use crate::merge::{Merge, MergeResult};
+use crate::merge::Merge;
 use crate::mmr::InclusionProof;
 use crate::mmr_store::MMRStoreReadOps;
 use crate::util::MemStore;
 use bytes::{Bytes, BytesMut};
+use std::convert::Infallible;
 use std::fmt;
 
 #[derive(Clone)]
@@ -76,8 +77,9 @@ struct MergeHashWithTD;
 
 impl Merge for MergeHashWithTD {
   type Item = HashWithTD;
+  type Error = Infallible;
 
-  fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+  fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&[0x00]);
@@ -102,7 +104,7 @@ impl Merge for MergeHashWithTD {
     _pos: u64,
     lhs: &Self::Item,
     rhs: &Self::Item,
-  ) -> MergeResult<Self::Item> {
+  ) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
     hasher.update(&lhs.serialize());
@@ -181,7 +183,7 @@ impl Prover {
     assert!(number < later_number);
     let pos = self.positions[number as usize];
     let later_pos = self.positions[later_number as usize];
-    let mmr = MMR::<MergeHashWithTD, MemStore<HashWithTD>>::new(
+    let mut mmr = MMR::<MergeHashWithTD, MemStore<HashWithTD>>::new(
       later_pos,
       self.store.clone(),
     );

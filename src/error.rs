@@ -1,43 +1,30 @@
-cfg_if::cfg_if! {
-  if #[cfg(feature = "std")] {
-    use std::result::Result as InnerResult;
-    use std::error::Error as InnerError;
-  } else {
-    use core::result::Result as InnerResult;
-    use core::error::Error as InnerError;
-  }
-}
+pub type UserError = Box<dyn core::error::Error + Send + Sync + 'static>;
+pub type Result<T> = core::result::Result<T, Error>;
 
-pub type Result<T, E = Box<dyn InnerError + Send + 'static>> =
-  InnerResult<T, Error<E>>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Error<E = Box<dyn InnerError + Send + 'static>> {
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+  #[error("Get root on an empty MMR")]
   GetRootOnEmpty,
+  #[error("Inconsistent store")]
   InconsistentStore,
-  StoreError(E),
+  #[error("Corrupted proof")]
   CorruptedProof,
+  #[error("Tried to verify membership of a non-leaf")]
   NodeProofsNotSupported,
+  #[error("Generate proof for invalid leaves")]
   GenProofForInvalidLeaves,
-  MergeError(crate::string::String),
+  #[error("Store error: {0}")]
+  StoreError(UserError),
+  #[error("Merge error: {0}")]
+  MergeError(UserError),
 }
 
-impl<E: core::fmt::Display> core::fmt::Display for Error<E> {
-  fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-    match self {
-      Error::GetRootOnEmpty => write!(f, "Get root on an empty MMR"),
-      Error::InconsistentStore => write!(f, "Inconsistent store"),
-      Error::StoreError(e) => write!(f, "Store error: {}", e),
-      Error::CorruptedProof => write!(f, "Corrupted proof"),
-      Error::NodeProofsNotSupported => {
-        write!(f, "Tried to verify membership of a non-leaf")
-      }
-      Error::GenProofForInvalidLeaves => {
-        write!(f, "Generate proof for invalid leaves")
-      }
-      Error::MergeError(msg) => write!(f, "Merge error: {}", msg),
+impl PartialEq for Error {
+  fn eq(&self, other: &Self) -> bool {
+    match (self, other) {
+      (Error::StoreError(_), Error::StoreError(_)) => false,
+      (Error::MergeError(_), Error::MergeError(_)) => false,
+      _ => std::mem::discriminant(self) == std::mem::discriminant(other),
     }
   }
 }
-
-impl<E: InnerError + core::fmt::Display> InnerError for Error<E> {}

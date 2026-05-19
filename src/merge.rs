@@ -1,26 +1,28 @@
-use crate::string::String;
-
-pub type MergeResult<T> = core::result::Result<T, String>;
+use core::{convert::Infallible, error::Error};
 
 pub trait Merge {
   type Item: Clone + PartialEq;
+  type Error: Error + Send + Sync + 'static;
 
-  fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item>;
+  fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error>;
 
   fn merge_pos(
     pos: u64,
     left: &Self::Item,
     right: &Self::Item,
-  ) -> MergeResult<Self::Item>;
+  ) -> Result<Self::Item, Self::Error>;
 
-  fn merge(left: &Self::Item, right: &Self::Item) -> MergeResult<Self::Item> {
+  fn merge(
+    left: &Self::Item,
+    right: &Self::Item,
+  ) -> Result<Self::Item, Self::Error> {
     Self::merge_pos(0, left, right)
   }
 
   fn merge_peaks(
     left: &Self::Item,
     right: &Self::Item,
-  ) -> MergeResult<Self::Item> {
+  ) -> Result<Self::Item, Self::Error> {
     Self::merge(left, right)
   }
 }
@@ -46,8 +48,9 @@ cfg_if::cfg_if! {
 
     impl<H: Digest> Merge for DigestMerge<H> {
       type Item = digest::Output<H>;
+      type Error = Infallible;
 
-      fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+      fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
         let mut hasher = H::new();
         hasher.update([LEAF_DOMAIN_PREFIX]);
         hasher.update(data);
@@ -58,7 +61,7 @@ cfg_if::cfg_if! {
         pos: u64,
         left: &Self::Item,
         right: &Self::Item,
-      ) -> MergeResult<Self::Item> {
+      ) -> Result<Self::Item, Self::Error> {
         let mut hasher = H::new();
         hasher.update([NODE_DOMAIN_PREFIX]);
         hasher.update(pos.to_be_bytes());
@@ -88,8 +91,9 @@ cfg_if::cfg_if! {
     #[allow(deprecated)]
     impl<H: digest::Digest> Merge for DigestMergeUnsafe<H> {
       type Item = digest::Output<H>;
+      type Error = Infallible;
 
-      fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+      fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
         let mut hasher = H::new();
         hasher.update(data);
         Ok(hasher.finalize())
@@ -99,7 +103,7 @@ cfg_if::cfg_if! {
         pos: u64,
         left: &Self::Item,
         right: &Self::Item,
-      ) -> MergeResult<Self::Item> {
+      ) -> Result<Self::Item, Self::Error> {
         let mut hasher = H::new();
         hasher.update(pos.to_be_bytes());
         hasher.update(left.as_slice());

@@ -1,7 +1,6 @@
 use crate::vec::Vec;
 use core::error::Error;
 use core::future::Future;
-use core::result::Result;
 
 pub struct MMRBatch<Elem, Store> {
   memory_batch: Vec<(u64, Vec<Elem>)>,
@@ -94,7 +93,7 @@ impl<Elem, Store> IntoIterator for MMRBatch<Elem, Store> {
 }
 
 pub trait MMRStoreReadOps<Elem: Send>: Send + Sync {
-  type Error: Error + Send + 'static;
+  type Error: Error + Send + Sync + 'static;
   fn get_elem(
     &self,
     pos: u64,
@@ -115,7 +114,7 @@ pub trait MMRStoreReadOps<Elem: Send>: Send + Sync {
 }
 
 pub trait MMRStoreWriteOps<Elem>: Send + Sync {
-  type Error: Error + Send + 'static;
+  type Error: Error + Send + Sync + 'static;
   fn append(
     &mut self,
     pos: u64,

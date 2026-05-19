@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use digest::Output;
-use merkleberg::{MMRIVER, DigestMerge, util::MemStore};
+use merkleberg::{DigestMerge, MMRIVER, util::MemStore};
 use rand::{seq::SliceRandom, thread_rng};
 use sha2::Sha256;
 use std::sync::LazyLock;

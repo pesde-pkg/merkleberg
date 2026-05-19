@@ -1,9 +1,9 @@
-use std::fmt;
+use std::{convert::Infallible, fmt};
 
 use proptest::proptest;
 use rand::{prelude::*, thread_rng};
 
-use crate::{MMR, Merge, MergeResult, util::MemStore};
+use crate::{MMR, Merge, util::MemStore};
 
 #[derive(Eq, PartialEq, Clone, Default)]
 struct NumberRange {
@@ -42,8 +42,9 @@ impl NumberRange {
 
 impl Merge for MergeNumberRange {
   type Item = NumberRange;
+  type Error = Infallible;
 
-  fn leaf_hash(data: &[u8]) -> MergeResult<Self::Item> {
+  fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
     let num = data
       .get(..4)
       .and_then(|b| b.try_into().ok())
@@ -59,7 +60,7 @@ impl Merge for MergeNumberRange {
     _pos: u64,
     lhs: &Self::Item,
     rhs: &Self::Item,
-  ) -> MergeResult<Self::Item> {
+  ) -> Result<Self::Item, Self::Error> {
     Ok(Self::Item {
       start: lhs.start,
       end: rhs.end,
@@ -69,7 +70,7 @@ impl Merge for MergeNumberRange {
   fn merge_peaks(
     left: &Self::Item,
     right: &Self::Item,
-  ) -> MergeResult<Self::Item> {
+  ) -> Result<Self::Item, Self::Error> {
     Self::merge_pos(0, right, left)
   }
 }
