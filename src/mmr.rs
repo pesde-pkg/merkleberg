@@ -4,11 +4,11 @@
 //! https://github.com/mimblewimble/grin/blob/master/doc/mmr.md#structure
 //! https://github.com/mimblewimble/grin/blob/0ff6763ee64e5a14e70ddd4642b99789a1648a32/core/src/core/pmmr.rs#L606
 
-use crate::Error;
+use crate::{Error, PeaksIter};
 use crate::borrow::Cow;
 use crate::collections::VecDeque;
 use crate::helper::{
-  get_peak_map, get_peaks, leaf_index_to_mmr_size, leaf_index_to_pos,
+  get_peak_map, leaf_index_to_mmr_size, leaf_index_to_pos,
   parent_offset, pos_height_in_tree, sibling_offset,
 };
 use crate::merge::{Merge, MergeResult};
@@ -113,10 +113,9 @@ where
         .map_err(Error::StoreError)?
         .ok_or(Error::InconsistentStore);
     }
-    let peak_positions = get_peaks(self.mmr_size);
     let elems = self
       .batch
-      .get_elems(&peak_positions)
+      .get_elems(PeaksIter::new(self.mmr_size))
       .await
       .map_err(Error::StoreError)?;
     let peaks: Vec<M::Item> = elems
@@ -219,7 +218,7 @@ where
     }
     pos_list.sort_unstable();
     pos_list.dedup();
-    let peaks = get_peaks(self.mmr_size);
+    let peaks: Vec<u64> = PeaksIter::new(self.mmr_size).collect();
     let mut proof: Vec<M::Item> = Vec::new();
     let mut bagging_track = 0;
     for peak_pos in peaks {
@@ -311,7 +310,7 @@ where
         self.mmr_size,
         self.proof.iter(),
       )?;
-      let peaks_pos = get_peaks(new_mmr_size);
+      let peaks_pos: Vec<u64> = PeaksIter::new(new_mmr_size).collect();
       let mut i = 0;
       while peaks_pos[i] < new_pos {
         i += 1
@@ -352,13 +351,13 @@ where
     let prev_peaks_positions = {
       let prev_index = prev_leaves_count - 1;
       let prev_mmr_size = leaf_index_to_mmr_size(prev_index);
-      let prev_peaks_positions = get_peaks(prev_mmr_size);
+      let prev_peaks_positions: Vec<u64> = PeaksIter::new(prev_mmr_size).collect();
       if prev_peaks_positions.len() != self.proof.len() {
         return Err(Error::CorruptedProof);
       }
       prev_peaks_positions
     };
-    let current_peaks_positions = get_peaks(self.mmr_size);
+    let current_peaks_positions: Vec<u64> = PeaksIter::new(self.mmr_size).collect();
 
     let mut reverse_index = prev_peaks_positions.len() - 1;
     for (i, position) in prev_peaks_positions.iter().enumerate() {
@@ -471,7 +470,7 @@ where
   }
   leaves.sort_by_key(|(pos, _)| *pos);
   leaves.dedup_by(|a, b| a.0 == b.0);
-  let peaks = get_peaks(mmr_size);
+  let peaks = PeaksIter::new(mmr_size);
 
   let mut peaks_hashes: Vec<M::Item> = Vec::with_capacity(peaks.len() + 1);
   for peak_pos in peaks {

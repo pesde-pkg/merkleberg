@@ -43,8 +43,9 @@ impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
 
   pub async fn get_elems(
     &self,
-    positions: &[u64],
+    positions: impl Iterator<Item = u64> + Send,
   ) -> Result<Vec<Option<Elem>>, Store::Error> {
+    let positions: Vec<u64> = positions.collect();
     let mut results: Vec<Option<Elem>> = vec![None; positions.len()];
     let mut missing_indices: Vec<usize> = Vec::new();
     let mut missing_positions: Vec<u64> = Vec::new();
@@ -65,7 +66,7 @@ impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
     }
 
     if !missing_positions.is_empty() {
-      let fetched = self.store.get_elems(&missing_positions).await?;
+      let fetched = self.store.get_elems(missing_positions.into_iter()).await?;
       for (idx, elem) in missing_indices.iter().zip(fetched.iter()) {
         results[*idx] = elem.clone();
       }
@@ -102,9 +103,10 @@ pub trait MMRStoreReadOps<Elem: Send>: Send + Sync {
 
   fn get_elems(
     &self,
-    positions: &[u64],
+    positions: impl Iterator<Item = u64> + Send,
   ) -> impl Future<Output = Result<Vec<Option<Elem>>, Self::Error>> + Send {
     async move {
+      let positions: Vec<u64> = positions.collect();
       let futures = positions.iter().map(|pos| self.get_elem(*pos));
       futures_util::future::join_all(futures)
         .await

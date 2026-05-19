@@ -1,7 +1,7 @@
 use crate::Error;
 use crate::borrow::Cow;
 use crate::helper::{
-  consistency_proof_paths, index_height_mmriver, peaks_mmriver,
+  consistency_proof_paths, index_height_mmriver, PeaksMMRIVERIter,
 };
 use crate::merge::{Merge, MergeResult};
 use crate::mmr_store::{MMRBatch, MMRStoreReadOps, MMRStoreWriteOps};
@@ -98,10 +98,9 @@ where
     if self.mmr_size == 0 {
       return Err(Error::GetRootOnEmpty);
     }
-    let peak_positions = peaks_mmriver(self.mmr_size - 1);
     let elems = self
       .batch
-      .get_elems(&peak_positions)
+      .get_elems(PeaksMMRIVERIter::new(self.mmr_size - 1))
       .await
       .map_err(Error::StoreError)?;
     let peaks: Vec<M::Item> = elems
@@ -146,11 +145,9 @@ where
 
     let proof_indices = consistency_proof_paths(ifrom, ito);
 
-    let all_positions: Vec<u64> =
-      proof_indices.iter().flatten().copied().collect();
     let all_elems = self
       .batch
-      .get_elems(&all_positions)
+      .get_elems(proof_indices.iter().flatten().copied())
       .await
       .map_err(Error::StoreError)?;
 
@@ -188,7 +185,7 @@ where
 
     let elems = self
       .batch
-      .get_elems(&path_indices)
+      .get_elems(path_indices.into_iter())
       .await
       .map_err(Error::StoreError)?;
     let path_values: Vec<M::Item> = elems
@@ -248,8 +245,8 @@ where
       .included_root(self.proof.last().cloned().ok_or(Error::CorruptedProof)?)
       .map_err(Error::MergeError)?;
 
-    let peak_positions = peaks_mmriver(self.index);
-    if peak_positions.is_empty() {
+    let peak_positions = PeaksMMRIVERIter::new(self.index);
+    if peak_positions.len() == 0 {
       return Ok(false);
     }
 
@@ -303,7 +300,7 @@ where
     &self,
     old_accumulator: Vec<M::Item>,
   ) -> core::result::Result<Vec<M::Item>, Error<String>> {
-    let from_peaks = peaks_mmriver(self.mmr_size_from - 1);
+    let from_peaks: Vec<u64> = PeaksMMRIVERIter::new(self.mmr_size_from - 1).collect();
     if from_peaks.len() != old_accumulator.len()
       || from_peaks.len() != self.proof_paths.len()
     {

@@ -11,7 +11,9 @@ mod tests;
 pub mod util;
 
 pub use error::{Error, Result};
-pub use helper::{leaf_index_to_mmr_size, leaf_index_to_pos};
+pub use helper::{
+  PeaksIter, PeaksMMRIVERIter, leaf_index_to_mmr_size, leaf_index_to_pos,
+};
 pub use merge::{Merge, MergeResult};
 pub use mmr::{InclusionProof, MMR};
 pub use mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};

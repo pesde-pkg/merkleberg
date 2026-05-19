@@ -1,7 +1,7 @@
 use super::MergeNumberHash;
 use crate::{
-  MMR,
-  helper::{get_peak_map, get_peaks, pos_height_in_tree},
+  MMR, PeaksIter,
+  helper::{get_peak_map, pos_height_in_tree},
   leaf_index_to_mmr_size, leaf_index_to_pos,
   util::MemStore,
 };
@@ -94,22 +94,22 @@ fn test_get_peak_map() {
 }
 
 #[test]
-fn test_get_peaks() {
-  assert_eq!(get_peaks(0), vec![]);
-  assert_eq!(get_peaks(1), vec![0]);
-  assert_eq!(get_peaks(3), vec![2]);
-  assert_eq!(get_peaks(4), vec![2, 3]);
+fn test_peaks_iter() {
+  assert_eq!(PeaksIter::new(0).collect::<Vec<_>>(), Vec::<u64>::new());
+  assert_eq!(PeaksIter::new(1).collect::<Vec<_>>(), vec![0]);
+  assert_eq!(PeaksIter::new(3).collect::<Vec<_>>(), vec![2]);
+  assert_eq!(PeaksIter::new(4).collect::<Vec<_>>(), vec![2, 3]);
   // 5 and 6 are not valid mmr_size, it will return the peaks of the last valid mmr (size 4)
-  assert_eq!(get_peaks(5), vec![2, 3]);
-  assert_eq!(get_peaks(6), vec![2, 3]);
-  assert_eq!(get_peaks(7), vec![6]);
-  assert_eq!(get_peaks(8), vec![6, 7]);
+  assert_eq!(PeaksIter::new(5).collect::<Vec<_>>(), vec![2, 3]);
+  assert_eq!(PeaksIter::new(6).collect::<Vec<_>>(), vec![2, 3]);
+  assert_eq!(PeaksIter::new(7).collect::<Vec<_>>(), vec![6]);
+  assert_eq!(PeaksIter::new(8).collect::<Vec<_>>(), vec![6, 7]);
   // 9 is not valid mmr_size, it will return the peaks of the last valid mmr (size 8)
-  assert_eq!(get_peaks(9), vec![6, 7]);
-  assert_eq!(get_peaks(15), vec![14]);
-  assert_eq!(get_peaks(16), vec![14, 15]);
-  assert_eq!(get_peaks(18), vec![14, 17]);
-  assert_eq!(get_peaks(19), vec![14, 17, 18]);
+  assert_eq!(PeaksIter::new(9).collect::<Vec<_>>(), vec![6, 7]);
+  assert_eq!(PeaksIter::new(15).collect::<Vec<_>>(), vec![14]);
+  assert_eq!(PeaksIter::new(16).collect::<Vec<_>>(), vec![14, 15]);
+  assert_eq!(PeaksIter::new(18).collect::<Vec<_>>(), vec![14, 17]);
+  assert_eq!(PeaksIter::new(19).collect::<Vec<_>>(), vec![14, 17, 18]);
 }
 
 proptest! {

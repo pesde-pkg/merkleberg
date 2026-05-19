@@ -1,7 +1,7 @@
 cfg_if::cfg_if! {
   if #[cfg(feature = "unsafe-digest")] {
     use crate::{
-      helper::{index_height_mmriver, peaks_mmriver},
+      helper::{index_height_mmriver, PeaksMMRIVERIter},
       mmriver::{MMRIVER, included_root},
       util::MemStore,
     };
@@ -59,17 +59,17 @@ cfg_if::cfg_if! {
     }
 
     #[tokio::test]
-    async fn test_peaks_mmriver() {
-      let peaks = peaks_mmriver(38);
+    async fn test_peaks_mmriver_iter() {
+      let peaks: Vec<u64> = PeaksMMRIVERIter::new(38).collect();
       assert_eq!(peaks, vec![30u64, 37, 38]);
 
-      assert_eq!(peaks_mmriver(0), vec![0u64]);
-      assert_eq!(peaks_mmriver(2), vec![2u64]);
-      assert_eq!(peaks_mmriver(3), vec![2u64, 3]);
-      assert_eq!(peaks_mmriver(6), vec![6u64]);
-      assert_eq!(peaks_mmriver(7), vec![6u64, 7]);
-      assert_eq!(peaks_mmriver(9), vec![6u64, 9]);
-      assert_eq!(peaks_mmriver(14), vec![14u64]);
+      assert_eq!(PeaksMMRIVERIter::new(0).collect::<Vec<_>>(), vec![0u64]);
+      assert_eq!(PeaksMMRIVERIter::new(2).collect::<Vec<_>>(), vec![2u64]);
+      assert_eq!(PeaksMMRIVERIter::new(3).collect::<Vec<_>>(), vec![2u64, 3]);
+      assert_eq!(PeaksMMRIVERIter::new(6).collect::<Vec<_>>(), vec![6u64]);
+      assert_eq!(PeaksMMRIVERIter::new(7).collect::<Vec<_>>(), vec![6u64, 7]);
+      assert_eq!(PeaksMMRIVERIter::new(9).collect::<Vec<_>>(), vec![6u64, 9]);
+      assert_eq!(PeaksMMRIVERIter::new(14).collect::<Vec<_>>(), vec![14u64]);
     }
 
     #[tokio::test]

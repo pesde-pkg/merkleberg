@@ -75,41 +75,71 @@ pub fn get_peak_map(mmr_size: u64) -> u64 {
   peak_map
 }
 
-/// Returns the pos of the peaks in the mmr.
-/// for example, for a mmr with 11 leaves, the mmr_size is 19, it will return [14, 17, 18].
-///           14
-///        /       \
-///      6          13
-///    /   \       /   \
-///   2     5     9     12     17
-///  / \   /  \  / \   /  \   /  \
-/// 0   1 3   4 7   8 10  11 15  16 18
-///
-/// please note that when the mmr_size is invalid, it will return the peaks of the last valid mmr.
-/// in the below example, the mmr_size is 6, but it's not a valid mmr, it will return [2, 3].
-///   2     5
-///  / \   /  \
-/// 0   1 3   4
-pub fn get_peaks(mmr_size: u64) -> Vec<u64> {
-  if mmr_size == 0 {
-    return vec![];
+pub struct PeaksIter {
+  pos: u64,
+  peak_size: u64,
+  peaks_sum: u64,
+}
+
+impl PeaksIter {
+  /// Returns the pos of the peaks in the mmr as an iterator.
+  /// for example, for a mmr with 11 leaves, the mmr_size is 19, it will return [14, 17, 18].
+  ///           14
+  ///        /       \
+  ///      6          13
+  ///    /   \       /   \
+  ///   2     5     9     12     17
+  ///  / \   /  \  / \   /  \   /  \
+  /// 0   1 3   4 7   8 10  11 15  16 18
+  ///
+  /// please note that when the mmr_size is invalid, it will return the peaks of the last valid mmr.
+  /// in the below example, the mmr_size is 6, but it's not a valid mmr, it will return [2, 3].
+  ///   2     5
+  ///  / \   /  \
+  /// 0   1 3   4
+  pub fn new(mmr_size: u64) -> Self {
+    if mmr_size == 0 {
+      return Self {
+        pos: 0,
+        peak_size: 0,
+        peaks_sum: 0,
+      };
+    }
+    Self {
+      pos: mmr_size,
+      peak_size: u64::MAX >> mmr_size.leading_zeros(),
+      peaks_sum: 0,
+    }
+  }
+}
+
+impl Iterator for PeaksIter {
+  type Item = u64;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    while self.peak_size > 0 {
+      if self.pos >= self.peak_size {
+        self.pos -= self.peak_size;
+        let peak = self.peaks_sum + self.peak_size - 1;
+        self.peaks_sum += self.peak_size;
+        self.peak_size >>= 1;
+        return Some(peak);
+      }
+      self.peak_size >>= 1;
+    }
+    None
   }
 
-  let leading_zeros = mmr_size.leading_zeros();
-  let mut pos = mmr_size;
-  let mut peak_size = u64::MAX >> leading_zeros;
-  let mut peaks = Vec::with_capacity(64 - leading_zeros as usize);
-  let mut peaks_sum = 0;
-  while peak_size > 0 {
-    if pos >= peak_size {
-      pos -= peak_size;
-      peaks.push(peaks_sum + peak_size - 1);
-      peaks_sum += peak_size;
+  fn size_hint(&self) -> (usize, Option<usize>) {
+    if self.peak_size == 0 {
+      return (0, Some(0));
     }
-    peak_size >>= 1;
+    let remaining_peaks = (self.pos / self.peak_size + 1).count_ones() as usize;
+    (remaining_peaks, Some(remaining_peaks))
   }
-  peaks
 }
+
+impl ExactSizeIterator for PeaksIter {}
 
 fn all_ones(pos: u64) -> bool {
   if pos == 0 {
@@ -135,18 +165,37 @@ pub fn index_height_mmriver(i: u64) -> u8 {
   u64::BITS as u8 - pos.leading_zeros() as u8 - 1
 }
 
-pub fn peaks_mmriver(i: u64) -> Vec<u64> {
-  let mut peak = 0;
-  let mut peaks = vec![];
-  let mut s = i + 1;
-  while s != 0 {
-    let highest_size = (1 << u64::checked_ilog2(s + 1).unwrap_or(0)) - 1;
-    peak += highest_size;
-    peaks.push(peak - 1);
-    s -= highest_size;
-  }
-  peaks
+pub struct PeaksMMRIVERIter {
+  peak: u64,
+  remaining: u64,
 }
+
+impl PeaksMMRIVERIter {
+  pub fn new(i: u64) -> Self {
+    Self { peak: 0, remaining: i + 1 }
+  }
+}
+
+impl Iterator for PeaksMMRIVERIter {
+  type Item = u64;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    if self.remaining == 0 {
+      return None;
+    }
+    let highest_size = (1 << u64::checked_ilog2(self.remaining + 1).unwrap_or(0)) - 1;
+    self.peak += highest_size;
+    self.remaining -= highest_size;
+    Some(self.peak - 1)
+  }
+
+  fn size_hint(&self) -> (usize, Option<usize>) {
+    let remaining_peaks = self.remaining.count_ones() as usize;
+    (remaining_peaks, Some(remaining_peaks))
+  }
+}
+
+impl ExactSizeIterator for PeaksMMRIVERIter {}
 
 pub fn inclusion_proof_path(mut i: u64, c: u64) -> Vec<u64> {
   let mut path = vec![];
@@ -175,8 +224,7 @@ pub fn inclusion_proof_path(mut i: u64, c: u64) -> Vec<u64> {
 }
 
 pub fn consistency_proof_paths(ifrom: u64, ito: u64) -> Vec<Vec<u64>> {
-  peaks_mmriver(ifrom)
-    .into_iter()
+  PeaksMMRIVERIter::new(ifrom)
     .map(|ipeak| inclusion_proof_path(ipeak, ito))
     .collect()
 }
