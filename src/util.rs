@@ -28,6 +28,19 @@ impl<T: Clone + Send + Sync> MMRStoreReadOps<T> for MemStore<T> {
   ) -> core::result::Result<Option<T>, Self::Error> {
     Ok(self.0.read().unwrap().get(&pos).cloned())
   }
+
+  async fn get_elems(
+    &self,
+    positions: &[u64],
+  ) -> core::result::Result<Vec<Option<T>>, Self::Error> {
+    let store = self.0.read().unwrap();
+    Ok(
+      positions
+        .iter()
+        .map(|pos| store.get(pos).cloned())
+        .collect(),
+    )
+  }
 }
 
 impl<T: Send + Sync> MMRStoreWriteOps<T> for MemStore<T> {

@@ -99,16 +99,15 @@ where
       return Err(Error::GetRootOnEmpty);
     }
     let peak_positions = peaks_mmriver(self.mmr_size - 1);
-    let mut peaks: Vec<M::Item> = Vec::with_capacity(peak_positions.len());
-    for peak_pos in peak_positions {
-      let elem = self
-        .batch
-        .get_elem(peak_pos)
-        .await
-        .map_err(Error::StoreError)?
-        .ok_or(Error::InconsistentStore)?;
-      peaks.push(elem);
-    }
+    let elems = self
+      .batch
+      .get_elems(&peak_positions)
+      .await
+      .map_err(Error::StoreError)?;
+    let peaks: Vec<M::Item> = elems
+      .into_iter()
+      .map(|elem| elem.ok_or(Error::InconsistentStore))
+      .collect::<core::result::Result<Vec<_>, _>>()?;
     Ok(peaks)
   }
 
@@ -146,22 +145,27 @@ where
     let ito = self.mmr_size - 1;
 
     let proof_indices = consistency_proof_paths(ifrom, ito);
+
+    let all_positions: Vec<u64> =
+      proof_indices.iter().flatten().copied().collect();
+    let all_elems = self
+      .batch
+      .get_elems(&all_positions)
+      .await
+      .map_err(Error::StoreError)?;
+
     let mut proof_paths: Vec<Vec<M::Item>> =
       Vec::with_capacity(proof_indices.len());
-
-    for path_indices in proof_indices {
-      let mut path_values: Vec<M::Item> =
-        Vec::with_capacity(path_indices.len());
-      for idx in path_indices {
-        let elem = self
-          .batch
-          .get_elem(idx)
-          .await
-          .map_err(Error::StoreError)?
-          .ok_or(Error::InconsistentStore)?;
-        path_values.push(elem);
-      }
+    let mut offset = 0;
+    for path_indices in &proof_indices {
+      let path_values: Vec<M::Item> = all_elems
+        [offset..offset + path_indices.len()]
+        .iter()
+        .cloned()
+        .map(|elem| elem.ok_or(Error::InconsistentStore))
+        .collect::<core::result::Result<Vec<_>, _>>()?;
       proof_paths.push(path_values);
+      offset += path_indices.len();
     }
 
     Ok(ConsistencyProof::new(
@@ -182,16 +186,15 @@ where
     let c = self.mmr_size - 1;
     let path_indices = crate::helper::inclusion_proof_path(i, c);
 
-    let mut path_values: Vec<M::Item> = Vec::with_capacity(path_indices.len());
-    for idx in path_indices {
-      let elem = self
-        .batch
-        .get_elem(idx)
-        .await
-        .map_err(Error::StoreError)?
-        .ok_or(Error::InconsistentStore)?;
-      path_values.push(elem);
-    }
+    let elems = self
+      .batch
+      .get_elems(&path_indices)
+      .await
+      .map_err(Error::StoreError)?;
+    let path_values: Vec<M::Item> = elems
+      .into_iter()
+      .map(|elem| elem.ok_or(Error::InconsistentStore))
+      .collect::<core::result::Result<Vec<_>, _>>()?;
 
     Ok(InclusionProof::new(i, path_values))
   }

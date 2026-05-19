@@ -114,16 +114,15 @@ where
         .ok_or(Error::InconsistentStore);
     }
     let peak_positions = get_peaks(self.mmr_size);
-    let mut peaks: Vec<M::Item> = Vec::with_capacity(peak_positions.len());
-    for peak_pos in peak_positions {
-      let elem = self
-        .batch
-        .get_elem(peak_pos)
-        .await
-        .map_err(Error::StoreError)?
-        .ok_or(Error::InconsistentStore)?;
-      peaks.push(elem);
-    }
+    let elems = self
+      .batch
+      .get_elems(&peak_positions)
+      .await
+      .map_err(Error::StoreError)?;
+    let peaks: Vec<M::Item> = elems
+      .into_iter()
+      .map(|elem| elem.ok_or(Error::InconsistentStore))
+      .collect::<core::result::Result<Vec<_>, _>>()?;
     self
       .bag_rhs_peaks(peaks)
       .map_err(Error::MergeError)?
