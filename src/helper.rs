@@ -183,7 +183,7 @@ impl Iterator for PeaksMMRIVERIter {
     if self.remaining == 0 {
       return None;
     }
-    let highest_size = (1 << u64::checked_ilog2(self.remaining + 1).unwrap_or(0)) - 1;
+    let highest_size = (1 << u64::ilog2(self.remaining + 1)) - 1;
     self.peak += highest_size;
     self.remaining -= highest_size;
     Some(self.peak - 1)
