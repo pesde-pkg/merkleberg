@@ -4,7 +4,7 @@ use criterion::Criterion;
 
 use merkleberg::helper::{
   inclusion_proof_path, index_height_mmriver, leaf_index_to_mmr_size,
-  leaf_index_to_pos, peaks_mmriver,
+  leaf_index_to_pos, PeaksMMRIVERIter
 };
 use rand::{Rng, thread_rng};
 
@@ -37,7 +37,7 @@ fn bench(c: &mut Criterion) {
     let mut rng = thread_rng();
     b.iter(|| {
       let i = rng.gen_range(0..1_000_000);
-      peaks_mmriver(i);
+      PeaksMMRIVERIter::new(i);
     });
   });
 
