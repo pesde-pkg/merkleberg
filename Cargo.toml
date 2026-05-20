@@ -2,7 +2,9 @@
 name = "merkleberg"
 version = "0.1.0"
 authors = ["Erica Marigold <hi@devcomp.xyz> ", "Nervos Core Dev <dev@nervos.org>"]
+documentation = "https://docs.rs/merkleberg"
 edition = "2024"
+homepage = "https://pesde.dev/"
 rust-version = "1.85.0"
 license = "MIT"
 description = "Merkle mountain range library in Rust"
