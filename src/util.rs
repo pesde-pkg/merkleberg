@@ -69,9 +69,19 @@ impl<T: Send + Sync> MMRStoreWriteOps<T> for MemStore<T> {
 /// Type alias for MMR with in-memory store.
 ///
 /// ```rust,ignore
-/// use merkleberg::{MemMMR, DigestMerge};
+/// use merkleberg::{util::MemMMR, DigestMerge};
 /// use sha2::Sha256;
 ///
 /// let mmr: MemMMR<DigestMerge<Sha256>> = MMR::new(0, MemStore::default());
 /// ```
 pub type MemMMR<M> = crate::MMR<M, MemStore<<M as Merge>::Item>>;
+
+/// Type alias for MMRIVER with in-memory store.
+///
+/// ```rust,ignore
+/// use merkleberg::{util::MemMMRIVER, DigestMerge};
+/// use sha2::Sha256;
+///
+/// let mmr: MemMMRIVER<DigestMerge<Sha256>> = MMR::new(0, MemStore::default());
+/// ```
+pub type MemMMRIVER<M> = crate::MMRIVER<M, MemStore<<M as Merge>::Item>>;

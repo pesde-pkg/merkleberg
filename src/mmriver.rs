@@ -14,14 +14,14 @@
 //! ## Usage
 //!
 //! ```rust
-//! use merkleberg::{MMRIVER, Merge, DigestMerge, util::MemStore};
+//! use merkleberg::{MMRIVER, Merge, DigestMerge, util::{MemMMRIVER, MemStore}};
 //! use sha2::Sha256;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create MMRIVER with SHA-256 hashing
 //!     let store = MemStore::default();
-//!     let mut mmriver: MMRIVER<DigestMerge<Sha256>, _> = MMRIVER::new(0, store);
+//!     let mut mmriver: MemMMRIVER<DigestMerge<Sha256>> = MMRIVER::new(0, store);
 //!
 //!     // Add elements
 //!     for i in 0u64..10 {

@@ -13,14 +13,14 @@
 //! ## Usage
 //!
 //! ```rust
-//! use merkleberg::{MMR, Merge, DigestMerge, util::MemStore};
+//! use merkleberg::{MMR, Merge, DigestMerge, util::{MemStore, MemMMR}};
 //! use sha2::Sha256;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create MMR with SHA-256 hashing and in-memory store
 //!     let store = MemStore::default();
-//!     let mut mmr: MMR<DigestMerge<Sha256>, _> = MMR::new(0, store);
+//!     let mut mmr: MemMMR<DigestMerge<Sha256>> = MMR::new(0, store);
 //!
 //!     // Add elements (positions are returned for later reference)
 //!     let pos0 = mmr.push(b"first").await?;
