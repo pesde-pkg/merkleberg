@@ -6,7 +6,7 @@ pub mod helper;
 mod merge;
 pub mod mmr;
 mod mmr_store;
-mod mmriver;
+pub mod mmriver;
 #[cfg(test)]
 mod tests;
 pub mod util;
@@ -16,12 +16,9 @@ pub use helper::{
   PeaksIter, PeaksMMRIVERIter, leaf_index_to_mmr_size, leaf_index_to_pos,
 };
 pub use merge::Merge;
-pub use mmr::{InclusionProof, MMR};
+pub use mmr::MMR;
 pub use mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
-pub use mmriver::{
-  ConsistencyProof, InclusionProof as MMRIVERInclusionProof, MMRIVER,
-  included_root,
-};
+pub use mmriver::{MMRIVER, included_root};
 
 #[cfg(feature = "digest")]
 pub use merge::DigestMerge;
