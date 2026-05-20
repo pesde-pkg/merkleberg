@@ -216,6 +216,27 @@ pub enum Error {
 
 Custom store / merge errors need only implement `Error + Send + Sync + 'static`.
 
+## Serde Support
+
+Enabling the `serde` feature makes all proof types implement `Serialize` and `Deserialize`:
+
+```rust,ignore
+use merkleberg::mmriver::InclusionProof;
+use serde_json;
+
+// Serialize proof to JSON
+let proof = mmriver.gen_inclusion_proof(0).await?;
+let json = serde_json::to_string(&proof)?;
+
+// Deserialize from JSON
+let decoded: InclusionProof<DigestMerge<Sha256>> = serde_json::from_str(&json)?;
+```
+
+> [!NOTE]
+> The `Item` type of the `Merge` implementation being used must also implement `Serialize` and
+> `Deserialize` for the proofs to implement them. The provided merge implementations already do
+> so.
+
 ## References
 
 - [OpenTimestamps MMR spec](https://github.com/opentimestamps/opentimestamps-server/blob/master/doc/merkle-mountain-range.md)
