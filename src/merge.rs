@@ -45,7 +45,7 @@ use core::{convert::Infallible, error::Error};
 ///         // Hash with leaf domain prefix (e.g., 0x00)
 ///     }
 ///
-///     fn merge_pos(pos: u64, left: &Self::Item, right: &Self::Item) 
+///     fn merge_pos(pos: u64, left: &Self::Item, right: &Self::Item)
 ///         -> Result<Self::Item, Self::Error> {
 ///         // Hash with node domain prefix (e.g., 0x01 + pos)
 ///     }
@@ -95,7 +95,10 @@ pub trait Merge {
   /// Merge two nodes without position context.
   ///
   /// Default implementation calls `merge_pos(0, left, right)`.
-  fn merge(left: &Self::Item, right: &Self::Item) -> Result<Self::Item, Self::Error> {
+  fn merge(
+    left: &Self::Item,
+    right: &Self::Item,
+  ) -> Result<Self::Item, Self::Error> {
     Self::merge_pos(0, left, right)
   }
 
@@ -163,8 +166,8 @@ cfg_if::cfg_if! {
     /// Spec-compliant Merkle tree hasher **WITHOUT** domain separation.
     ///
     /// ## Safety
-    /// Usage of this hasher is heavily discouraged, as it is vulnerable to 
-    /// [second preimage attacks]. For production use, refer to [`DigestMerge`] 
+    /// Usage of this hasher is heavily discouraged, as it is vulnerable to
+    /// [second preimage attacks]. For production use, refer to [`DigestMerge`]
     /// instead.
     ///
     /// [second preimage attacks]: https://en.wikipedia.org/wiki/Merkle_tree#Second_preimage_attack

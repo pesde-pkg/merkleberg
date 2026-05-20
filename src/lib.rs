@@ -11,7 +11,7 @@ mod mmriver;
 mod tests;
 pub mod util;
 
-pub use error::{Error, Result};
+pub use error::{Error, Result, UserError};
 pub use helper::{
   PeaksIter, PeaksMMRIVERIter, leaf_index_to_mmr_size, leaf_index_to_pos,
 };

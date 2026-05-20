@@ -9,9 +9,9 @@
 //! An MMR consists of one or more complete binary trees ("mountains").
 //! Each mountain's root is a "peak". The MMR root is computed by bagging
 //! these peaks from right to left.
-//! 
+//!
 //! ## Usage
-//! 
+//!
 //! ```rust
 //! use merkleberg::{MMR, Merge, DigestMerge, util::MemStore};
 //! use sha2::Sha256;
@@ -78,7 +78,7 @@ use core::mem;
 ///
 /// Elements are buffered until [`Self::commit`] is called, enabling efficient
 /// batch writes to storage.
-/// 
+///
 /// ## Type Parameters
 ///
 /// - `M`: the [`Merge`] strategy, which defines the item type (`M::Item`) and how two

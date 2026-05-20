@@ -14,9 +14,9 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// - Merge operations (hash computation failures)
 /// - Invalid API usage (operations on empty MMR)
 /// - Proof verification failures
-/// 
+///
 /// Store and merge errors are provided by the implementer of the trait
-/// and can vary. See the [`UserError`] type. 
+/// and can vary. See the [`UserError`] type.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
   /// Attempted to get root of an empty MMR.

@@ -10,9 +10,9 @@
 //! - Consistency proofs showing tree evolution
 //!
 //! Consistency proofs show that old headers are included in new state.
-//! 
+//!
 //! ## Usage
-//! 
+//!
 //! ```rust
 //! use merkleberg::{MMRIVER, Merge, DigestMerge, util::MemStore};
 //! use sha2::Sha256;
@@ -85,7 +85,7 @@ use core::marker::PhantomData;
 ///
 /// ## Accumulator vs. Bagged Root
 ///
-/// A standard [`MMR`] collapses all peaks into a single hash (bagging). `MMRIVER` instead
+/// A standard `MMR` collapses all peaks into a single hash (bagging). `MMRIVER` instead
 /// retains peaks as an ordered list (i.e., the accumulator) where each entry is the root
 /// hash of one perfect binary subtree. This means the root of an `MMRIVER` is a list rather
 /// than a singular value.
@@ -352,8 +352,8 @@ where
 /// Inclusion proof for MMRIVER.
 ///
 /// Proves that a leaf exists in the accumulator.
-/// 
-/// Unlike [`crate::mmr::InclusionProof`], which checks against a singular root, 
+///
+/// Unlike [`crate::mmr::InclusionProof`], which checks against a singular root,
 /// this checks against an accumulator (list of peaks) instead.
 #[derive(Debug)]
 pub struct InclusionProof<M: Merge> {
@@ -406,8 +406,9 @@ where
     nodehash: M::Item,
     accumulator: &[M::Item],
   ) -> Result<bool, Error> {
-    let root =
-      self.included_root(nodehash).map_err(|e| Error::MergeError(e.into()))?;
+    let root = self
+      .included_root(nodehash)
+      .map_err(|e| Error::MergeError(e.into()))?;
 
     let peak_positions = PeaksMMRIVERIter::new(self.index);
     if peak_positions.len() == 0 {

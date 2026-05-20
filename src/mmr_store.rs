@@ -4,11 +4,11 @@ use core::future::Future;
 
 /// Batch of uncommitted MMR elements.
 ///
-/// Elements added via [`push`] are buffered into memory until [`commit`] 
-/// is called. 
-/// 
-/// Useful since individual writes need to hold an exclusive lock for a 
-/// commit. Batching allows for holding a singular lock for multiple commits. 
+/// Elements added via [`push`] are buffered into memory until [`commit`]
+/// is called.
+///
+/// Useful since individual writes need to hold an exclusive lock for a
+/// commit. Batching allows for holding a singular lock for multiple commits.
 ///
 /// ## Inspecting Batch
 ///
