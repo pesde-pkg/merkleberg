@@ -159,7 +159,7 @@ hashing algorithms can be found as a part of the [RustCrypto] project.
 By default, `DigestMerge` uses domain prefixes to prevent [second preimage attacks]:
 
 - Leaves: prefixed with `0x00`
-- Nodes: prefixed with position bytes
+- Nodes: prefixed with `0x01`
 
 This ensures a leaf hash cannot be crafted to match a node hash.
 
