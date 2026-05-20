@@ -1,4 +1,93 @@
 cfg_if::cfg_if! {
+  if #[cfg(feature = "std")] {
+    use super::MergeNumberHash;
+    use crate::{
+      helper::PeaksMMRIVERIter,
+      MMRIVER,
+      merge::Merge,
+      util::MemStore,
+    };
+
+    #[tokio::test]
+    async fn test_mmriver_basic() {
+      let store = MemStore::default();
+      let mut mmr: MMRIVER<MergeNumberHash, _> = MMRIVER::new(0, store);
+
+      for i in 0u64..21 {
+        mmr.push(&i.to_be_bytes()).await.unwrap();
+      }
+      mmr.commit().await.unwrap();
+
+      assert_eq!(mmr.mmr_size(), 39);
+
+      let accumulator = mmr.get_accumulator().await.unwrap();
+      assert_eq!(accumulator.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_peaks_mmriver_iter() {
+      let peaks: Vec<u64> = PeaksMMRIVERIter::new(38).collect();
+      assert_eq!(peaks, vec![30u64, 37, 38]);
+
+      assert_eq!(PeaksMMRIVERIter::new(0).collect::<Vec<_>>(), vec![0u64]);
+      assert_eq!(PeaksMMRIVERIter::new(2).collect::<Vec<_>>(), vec![2u64]);
+      assert_eq!(PeaksMMRIVERIter::new(3).collect::<Vec<_>>(), vec![2u64, 3]);
+      assert_eq!(PeaksMMRIVERIter::new(6).collect::<Vec<_>>(), vec![6u64]);
+      assert_eq!(PeaksMMRIVERIter::new(7).collect::<Vec<_>>(), vec![6u64, 7]);
+      assert_eq!(PeaksMMRIVERIter::new(9).collect::<Vec<_>>(), vec![6u64, 9]);
+      assert_eq!(PeaksMMRIVERIter::new(14).collect::<Vec<_>>(), vec![14u64]);
+    }
+
+    #[tokio::test]
+    async fn test_mmriver_inclusion_proof() {
+      let store = MemStore::default();
+      let mut mmr: MMRIVER<MergeNumberHash, _> = MMRIVER::new(0, store);
+
+      for i in 0u64..21 {
+        mmr.push(&i.to_be_bytes()).await.unwrap();
+      }
+      mmr.commit().await.unwrap();
+
+      let accumulator = mmr.get_accumulator().await.unwrap();
+
+      let proof = mmr.gen_inclusion_proof(0).await.unwrap();
+      assert_eq!(proof.index(), 0);
+
+      let leaf_hash = MergeNumberHash::leaf_hash(&0u64.to_be_bytes()).unwrap();
+      assert!(proof.verify(leaf_hash, &accumulator).unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_mmriver_consistency_proof() {
+      let store = MemStore::default();
+      let mut mmr: MMRIVER<MergeNumberHash, _> = MMRIVER::new(0, store);
+
+      for i in 0u64..21 {
+        mmr.push(&i.to_be_bytes()).await.unwrap();
+      }
+      mmr.commit().await.unwrap();
+
+      let old_store = MemStore::default();
+      let mut old_mmr: MMRIVER<MergeNumberHash, _> = MMRIVER::new(0, old_store);
+
+      for i in 0u64..4 {
+        old_mmr.push(&i.to_be_bytes()).await.unwrap();
+      }
+      old_mmr.commit().await.unwrap();
+
+      let old_accumulator = old_mmr.get_accumulator().await.unwrap();
+      let proof = mmr.gen_consistency_proof(7).await.unwrap();
+
+      assert_eq!(proof.mmr_size_from(), 7);
+      assert_eq!(proof.mmr_size_to(), 39);
+
+      let new_accumulator = mmr.get_accumulator().await.unwrap();
+      assert!(proof.verify(old_accumulator, &new_accumulator).unwrap());
+    }
+  }
+}
+
+cfg_if::cfg_if! {
   if #[cfg(feature = "unsafe-digest")] {
     use crate::{
       helper::{index_height_mmriver, PeaksMMRIVERIter},
@@ -47,29 +136,6 @@ cfg_if::cfg_if! {
       let mut fixed = [0u8; 32];
       fixed.copy_from_slice(&arr);
       fixed
-    }
-
-    #[tokio::test]
-    async fn test_mmriver_basic() {
-      let mmr = build_spec_mmriver(21).await;
-      assert_eq!(mmr.mmr_size(), 39);
-
-      let accumulator = mmr.get_accumulator().await.unwrap();
-      assert_eq!(accumulator.len(), 3);
-    }
-
-    #[tokio::test]
-    async fn test_peaks_mmriver_iter() {
-      let peaks: Vec<u64> = PeaksMMRIVERIter::new(38).collect();
-      assert_eq!(peaks, vec![30u64, 37, 38]);
-
-      assert_eq!(PeaksMMRIVERIter::new(0).collect::<Vec<_>>(), vec![0u64]);
-      assert_eq!(PeaksMMRIVERIter::new(2).collect::<Vec<_>>(), vec![2u64]);
-      assert_eq!(PeaksMMRIVERIter::new(3).collect::<Vec<_>>(), vec![2u64, 3]);
-      assert_eq!(PeaksMMRIVERIter::new(6).collect::<Vec<_>>(), vec![6u64]);
-      assert_eq!(PeaksMMRIVERIter::new(7).collect::<Vec<_>>(), vec![6u64, 7]);
-      assert_eq!(PeaksMMRIVERIter::new(9).collect::<Vec<_>>(), vec![6u64, 9]);
-      assert_eq!(PeaksMMRIVERIter::new(14).collect::<Vec<_>>(), vec![14u64]);
     }
 
     #[tokio::test]
@@ -260,15 +326,9 @@ cfg_if::cfg_if! {
 
 cfg_if::cfg_if! {
   if #[cfg(all(feature = "digest", not(feature = "unsafe-digest")))] {
-    use crate::{
-      merge::{Merge, DigestMerge},
-      MMRIVER,
-      util::MemStore,
-    };
+    use crate::merge::DigestMerge;
     use digest::Output;
     use sha2::{Digest, Sha256};
-
-    type SecureMMRIVER = MMRIVER<DigestMerge<Sha256>, MemStore<Output<Sha256>>>;
 
     #[tokio::test]
     async fn test_domain_separation_leaf_prefix() {
@@ -314,68 +374,6 @@ cfg_if::cfg_if! {
 
       // They must differ even if we try to match them
       assert_ne!(leaf_hash, node_hash);
-    }
-
-    #[tokio::test]
-    async fn test_secure_mmriver_basic() {
-      let store = MemStore::default();
-      let mut mmr = SecureMMRIVER::new(0, store);
-
-      for i in 0u64..21 {
-        mmr.push(&i.to_be_bytes()).await.unwrap();
-      }
-      mmr.commit().await.unwrap();
-
-      assert_eq!(mmr.mmr_size(), 39);
-      let accumulator = mmr.get_accumulator().await.unwrap();
-      assert_eq!(accumulator.len(), 3);
-    }
-
-    #[tokio::test]
-    async fn test_secure_mmriver_inclusion_proof() {
-      let store = MemStore::default();
-      let mut mmr = SecureMMRIVER::new(0, store);
-
-      for i in 0u64..21 {
-        mmr.push(&i.to_be_bytes()).await.unwrap();
-      }
-      mmr.commit().await.unwrap();
-
-      let accumulator = mmr.get_accumulator().await.unwrap();
-
-      let proof = mmr.gen_inclusion_proof(0).await.unwrap();
-      assert_eq!(proof.index(), 0);
-
-      let leaf_hash = DigestMerge::<Sha256>::leaf_hash(&0u64.to_be_bytes()).unwrap();
-      assert!(proof.verify(leaf_hash, &accumulator).unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_secure_mmriver_consistency_proof() {
-      let store = MemStore::default();
-      let mut mmr = SecureMMRIVER::new(0, store);
-
-      for i in 0u64..21 {
-        mmr.push(&i.to_be_bytes()).await.unwrap();
-      }
-      mmr.commit().await.unwrap();
-
-      let old_store = MemStore::default();
-      let mut old_mmr = SecureMMRIVER::new(0, old_store);
-
-      for i in 0u64..4 {
-        old_mmr.push(&i.to_be_bytes()).await.unwrap();
-      }
-      old_mmr.commit().await.unwrap();
-
-      let old_accumulator = old_mmr.get_accumulator().await.unwrap();
-      let proof = mmr.gen_consistency_proof(7).await.unwrap();
-
-      assert_eq!(proof.mmr_size_from(), 7);
-      assert_eq!(proof.mmr_size_to(), 39);
-
-      let new_accumulator = mmr.get_accumulator().await.unwrap();
-      assert!(proof.verify(old_accumulator, &new_accumulator).unwrap());
     }
   }
 }

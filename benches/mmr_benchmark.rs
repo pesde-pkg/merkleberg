@@ -89,7 +89,7 @@ fn bench(c: &mut Criterion) {
   c.bench_function("MMR gen proof", |b| {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let (mmr_size, store, positions) = prepare_mmr(1_000_000);
-    let mmr = MMR::<MergeNumberHash, _>::new(mmr_size, store);
+    let mut mmr = MMR::<MergeNumberHash, _>::new(mmr_size, store);
     let mut rng = thread_rng();
     b.iter(|| {
       rt.block_on(async {
@@ -103,7 +103,7 @@ fn bench(c: &mut Criterion) {
   c.bench_function("MMR verify", |b| {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let (mmr_size, store, positions) = prepare_mmr(1_000_000);
-    let mmr = MMR::<MergeNumberHash, _>::new(mmr_size, store.clone());
+    let mut mmr = MMR::<MergeNumberHash, _>::new(mmr_size, store.clone());
     let mut rng = thread_rng();
     let root: NumberHash = rt.block_on(async { mmr.get_root().await.unwrap() });
     let proofs: Vec<_> = rt.block_on(async {
