@@ -1,5 +1,5 @@
 cfg_if::cfg_if! {
-  if #[cfg(feature = "std")] {
+  if #[cfg(all(feature = "std", not(feature = "unsafe-digest")))] {
     use super::MergeNumberHash;
     use crate::{
       helper::PeaksMMRIVERIter,
