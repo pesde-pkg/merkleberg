@@ -58,7 +58,7 @@ jobs:
         with:
           version: 2026.5.6
           install: true
-          cache: true
+          cache: false # FIXME: caching breaks rustfmt installation for some reason
 
       - name: Configure sccache
         uses: actions/github-script@v9
