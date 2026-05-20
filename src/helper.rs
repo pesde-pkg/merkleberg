@@ -1,11 +1,26 @@
+//! Helper functions for MMR position calculations.
+//!
+//! Provides utilities for converting indices, computing peaks, and tree heights.
+//! Most users don't need this module directly; it's primarily used internally
+//! by [`crate::MMR`] and [`crate::MMRIVER`].
+//!
+//! ## References
+//!
+//! - [OpenTimestamps MMR spec](https://github.com/opentimestamps/opentimestamps-server/blob/master/doc/merkle-mountain-range.md)
+//! - [Grin documentation](https://docs.grin.mw/wiki/chain-state/merkle-mountain-range/)
+
 use crate::vec;
 use crate::vec::Vec;
 
+/// Convert leaf index to MMR position.
 pub fn leaf_index_to_pos(index: u64) -> u64 {
   // mmr_size - H - 1, H is the height(intervals) of last peak
   leaf_index_to_mmr_size(index) - (index + 1).trailing_zeros() as u64 - 1
 }
 
+/// Convert leaf index to MMR size.
+///
+/// Returns total positions (leaves + nodes) for a given leaf count.
 pub fn leaf_index_to_mmr_size(index: u64) -> u64 {
   // leaf index start with 0
   let leaves_count = index + 1;
@@ -16,6 +31,7 @@ pub fn leaf_index_to_mmr_size(index: u64) -> u64 {
   2 * leaves_count - peak_count
 }
 
+/// Compute height of position in tree.
 pub fn pos_height_in_tree(mut pos: u64) -> u8 {
   if pos == 0 {
     return 0;
@@ -31,17 +47,28 @@ pub fn pos_height_in_tree(mut pos: u64) -> u8 {
   pos as u8
 }
 
+/// Offset to parent from node at given height.
 pub fn parent_offset(height: u8) -> u64 {
   2 << height
 }
 
+/// Offset to sibling from node at given height.
 pub fn sibling_offset(height: u8) -> u64 {
   (2 << height) - 1
 }
 
-/// Returns the height of the peaks in the mmr, presented by a bitmap.
-/// for example, for a mmr with 11 leaves, the mmr_size is 19, it will return 0b1011.
-/// 0b1011 indicates that the left peaks are at height 0, 1 and 3.
+/// Returns a bitmap representing the heights of the peaks in the MMR.
+///
+/// ## Bitmap Format
+///
+/// Each set bit at position `n` indicates a peak at height `n`. For example,
+/// `0b1011` means peaks exist at heights 0, 1, and 3.
+///
+/// ## Example
+///
+/// An MMR with 11 leaves has an `mmr_size` of 19 and returns `0b1011`:
+///
+/// ```text
 ///           14
 ///        /       \
 ///      6          13
@@ -49,12 +76,19 @@ pub fn sibling_offset(height: u8) -> u64 {
 ///   2     5     9     12     17
 ///  / \   /  \  / \   /  \   /  \
 /// 0   1 3   4 7   8 10  11 15  16 18
+/// ```
 ///
-/// please note that when the mmr_size is invalid, it will return the bitmap of the last valid mmr.
-/// in the below example, the mmr_size is 6, but it's not a valid mmr, it will return 0b11.
+/// ## Invalid MMR Sizes
+///
+/// If `mmr_size` does not correspond to a valid MMR, the bitmap of the last
+/// valid MMR is returned instead. For example, `mmr_size = 6` is invalid and
+/// returns `0b11`, equivalent to:
+///
+/// ```text
 ///   2     5
 ///  / \   /  \
 /// 0   1 3   4
+/// ```
 pub fn get_peak_map(mmr_size: u64) -> u64 {
   if mmr_size == 0 {
     return 0;
@@ -75,6 +109,7 @@ pub fn get_peak_map(mmr_size: u64) -> u64 {
   peak_map
 }
 
+/// Iterator over peak positions in MMR.
 pub struct PeaksIter {
   pos: u64,
   peak_size: u64,
@@ -82,21 +117,7 @@ pub struct PeaksIter {
 }
 
 impl PeaksIter {
-  /// Returns the pos of the peaks in the mmr as an iterator.
-  /// for example, for a mmr with 11 leaves, the mmr_size is 19, it will return [14, 17, 18].
-  ///           14
-  ///        /       \
-  ///      6          13
-  ///    /   \       /   \
-  ///   2     5     9     12     17
-  ///  / \   /  \  / \   /  \   /  \
-  /// 0   1 3   4 7   8 10  11 15  16 18
-  ///
-  /// please note that when the mmr_size is invalid, it will return the peaks of the last valid mmr.
-  /// in the below example, the mmr_size is 6, but it's not a valid mmr, it will return [2, 3].
-  ///   2     5
-  ///  / \   /  \
-  /// 0   1 3   4
+  /// Create iterator for peaks in MMR of given size.
   pub fn new(mmr_size: u64) -> Self {
     if mmr_size == 0 {
       return Self {
@@ -159,6 +180,7 @@ fn most_sig_bit(pos: u64) -> u64 {
   1 << (u64::BITS - pos.leading_zeros() - 1)
 }
 
+/// Compute height at index for MMRIVER.
 pub fn index_height_mmriver(i: u64) -> u8 {
   let mut pos = i + 1;
   while !all_ones(pos) {
@@ -167,6 +189,9 @@ pub fn index_height_mmriver(i: u64) -> u8 {
   u64::BITS as u8 - pos.leading_zeros() as u8 - 1
 }
 
+/// Iterator over peak positions in MMRIVER.
+///
+/// Uses MMRIVER-specific indexing scheme.
 #[derive(Clone)]
 pub struct PeaksMMRIVERIter {
   peak: u64,
@@ -174,6 +199,7 @@ pub struct PeaksMMRIVERIter {
 }
 
 impl PeaksMMRIVERIter {
+  /// Create iterator for peaks at given index.
   pub fn new(i: u64) -> Self {
     Self {
       peak: 0,
@@ -203,6 +229,7 @@ impl Iterator for PeaksMMRIVERIter {
 
 impl ExactSizeIterator for PeaksMMRIVERIter {}
 
+/// Compute inclusion proof path for MMRIVER.
 pub fn inclusion_proof_path(mut i: u64, c: u64) -> Vec<u64> {
   let mut path = vec![];
   let mut g = index_height_mmriver(i);

@@ -1,3 +1,55 @@
+//! Standard Merkle Mountain Range implementation.
+//!
+//! [`MMR`] provides an append-only Merkle tree with efficient root computation
+//! and inclusion proofs. Elements are added via [`MMR::push`] and the root is
+//! computed by "bagging" peaks from right to left.
+//!
+//! ## Structure
+//!
+//! An MMR consists of one or more complete binary trees ("mountains").
+//! Each mountain's root is a "peak". The MMR root is computed by bagging
+//! these peaks from right to left.
+//! 
+//! ## Usage
+//! 
+//! ```rust
+//! use merkleberg::{MMR, Merge, DigestMerge, util::MemStore};
+//! use sha2::Sha256;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Create MMR with SHA-256 hashing and in-memory store
+//!     let store = MemStore::default();
+//!     let mut mmr: MMR<DigestMerge<Sha256>, _> = MMR::new(0, store);
+//!
+//!     // Add elements (positions are returned for later reference)
+//!     let pos0 = mmr.push(b"first").await?;
+//!     let pos1 = mmr.push(b"second").await?;
+//!
+//!     // Persist uncommitted elements to storage
+//!     mmr.commit().await?;
+//!
+//!     // Compute the Merkle root (bagged peaks)
+//!     let root = mmr.get_root().await?;
+//!
+//!     // Generate inclusion proof for the first element
+//!     let proof = mmr.gen_proof(vec![pos0]).await?;
+//!
+//!     // Verify the proof against the root
+//!     let leaf_hash = DigestMerge::<Sha256>::leaf_hash(b"first")?;
+//!     let is_valid = proof.verify(root, vec![(pos0, leaf_hash)])?;
+//!
+//!     assert!(is_valid);
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## References
+//!
+//! - [OpenTimestamps MMR spec](https://github.com/opentimestamps/opentimestamps-server/blob/master/doc/merkle-mountain-range.md)
+//! - [Grin documentation](https://docs.grin.mw/wiki/chain-state/merkle-mountain-range/)
+//! - [Nervos implementation](https://github.com/nervosnetwork/merkle-mountain-range)
+
 use crate::borrow::Cow;
 use crate::collections::VecDeque;
 use crate::error::UserError;
@@ -14,6 +66,25 @@ use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::mem;
 
+/// Merkle Mountain Range data structure.
+///
+/// An append-only Merkle tree supporting:
+/// - Adding new elements via [`Self::push`]
+/// - Computing the root hash via [`Self::get_root`]
+/// - Generating inclusion proofs via [`Self::gen_proof`]
+/// - Verifying proofs via [`InclusionProof::verify`]
+///
+/// ## Batched Writes
+///
+/// Elements are buffered until [`Self::commit`] is called, enabling efficient
+/// batch writes to storage.
+/// 
+/// ## Type Parameters
+///
+/// - `M`: the [`Merge`] strategy, which defines the item type (`M::Item`) and how two
+///   child hashes are combined into a parent hash.
+/// - `S`: the backing store, which must implement [`MMRStoreReadOps`] and
+///   [`MMRStoreWriteOps`] for `M::Item`.
 #[allow(clippy::upper_case_acronyms)]
 pub struct MMR<M: Merge, S> {
   mmr_size: u64,
@@ -22,6 +93,12 @@ pub struct MMR<M: Merge, S> {
 }
 
 impl<M: Merge, S> MMR<M, S> {
+  /// Create a new MMR.
+  ///
+  /// ## Parameters
+  ///
+  /// - `mmr_size`: Initial size (0 for empty, existing size if continuing)
+  /// - `store`: Storage backend implementing [`MMRStoreReadOps`]
   pub fn new(mmr_size: u64, store: S) -> Self {
     MMR {
       mmr_size,
@@ -30,18 +107,26 @@ impl<M: Merge, S> MMR<M, S> {
     }
   }
 
+  /// Returns the current MMR size.
+  ///
+  /// Size equals the total number of positions (leaves + nodes).
   pub fn mmr_size(&self) -> u64 {
     self.mmr_size
   }
 
+  /// Returns true if the MMR has no elements.
   pub fn is_empty(&self) -> bool {
     self.mmr_size == 0
   }
 
+  /// Access the uncommitted batch.
+  ///
+  /// Use this to inspect pending elements before [`Self::commit`].
   pub fn batch(&self) -> &MMRBatch<M::Item, S> {
     &self.batch
   }
 
+  /// Access the underlying store.
   pub fn store(&self) -> &S {
     self.batch.store()
   }
@@ -71,6 +156,16 @@ where
     Ok(Cow::Owned(elem))
   }
 
+  /// Add a new element to the MMR.
+  ///
+  /// ## Returns
+  ///
+  /// The position of the new leaf element.
+  ///
+  /// ## Errors
+  ///
+  /// - [`Error::MergeError`] if leaf hashing fails
+  /// - [`Error::StoreError`] if element fetch fails during merging
   pub async fn push(&mut self, data: &[u8]) -> Result<u64, Error> {
     let elem = M::leaf_hash(data).map_err(|e| Error::MergeError(e.into()))?;
     let mut elems = vec![elem];
@@ -93,6 +188,15 @@ where
     Ok(elem_pos)
   }
 
+  /// Compute the Merkle root.
+  ///
+  /// The root is computed by bagging all peaks from right to left.
+  ///
+  /// ## Errors
+  ///
+  /// - [`Error::GetRootOnEmpty`] if MMR has no elements
+  /// - [`Error::InconsistentStore`] if peaks are missing from store
+  /// - [`Error::StoreError`] if store fetch fails
   pub async fn get_root(&self) -> Result<M::Item, Error> {
     if self.mmr_size == 0 {
       return Err(Error::GetRootOnEmpty);
@@ -194,6 +298,21 @@ where
     Ok(())
   }
 
+  /// Generate an inclusion proof for leaves.
+  ///
+  /// ## Parameters
+  ///
+  /// - `pos_list`: Positions of leaves to prove
+  ///
+  /// ## Returns
+  ///
+  /// An [`InclusionProof`] containing the Merkle path.
+  ///
+  /// ## Errors
+  ///
+  /// - [`Error::GenProofForInvalidLeaves`] if positions are invalid
+  /// - [`Error::NodeProofsNotSupported`] if proving non-leaf nodes
+  /// - [`Error::StoreError`] if required nodes are missing
   pub async fn gen_proof(
     &mut self,
     mut pos_list: Vec<u64>,
@@ -248,6 +367,14 @@ where
   M::Item: Send,
   S::Error: Into<UserError>,
 {
+  /// Persist uncommitted elements to storage.
+  ///
+  /// Elements added via [`Self::push`] are buffered until commit.
+  /// Call this to write them to the underlying store.
+  ///
+  /// ## Errors
+  ///
+  /// - [`Error::StoreError`] if write fails
   pub async fn commit(&mut self) -> Result<(), Error> {
     self
       .batch
@@ -257,6 +384,22 @@ where
   }
 }
 
+/// Proof that elements exist in the MMR.
+///
+/// Contains the Merkle path from leaves to peaks,
+/// plus peak bagging hashes.
+///
+/// ## Verification
+///
+/// Use [`Self::verify`] to check against a known root:
+///
+/// ```rust,ignore
+/// let proof = mmr.gen_proof(vec![pos]).await?;
+/// let root = mmr.get_root().await?;
+///
+/// let leaves = vec![(pos, element)];
+/// assert!(proof.verify(root, leaves));
+/// ```
 #[derive(Debug)]
 pub struct InclusionProof<M: Merge> {
   mmr_size: u64,
@@ -269,6 +412,9 @@ where
   M::Item: Clone + PartialEq,
   M::Error: Into<UserError>,
 {
+  /// Create a proof from raw components.
+  ///
+  /// Usually obtained via [`MMR::gen_proof`].
   pub fn new(mmr_size: u64, proof: Vec<M::Item>) -> Self {
     InclusionProof {
       mmr_size,
@@ -277,14 +423,30 @@ where
     }
   }
 
+  /// MMR size when proof was generated.
   pub fn mmr_size(&self) -> u64 {
     self.mmr_size
   }
 
+  /// Proof items (Merkle path and peak hashes).
   pub fn proof_items(&self) -> &[M::Item] {
     &self.proof
   }
 
+  /// Compute root from proof and leaves.
+  ///
+  /// ## Parameters
+  ///
+  /// - `leaves`: Vector of `(position, element)` pairs
+  ///
+  /// ## Returns
+  ///
+  /// The computed root hash.
+  ///
+  /// ## Errors
+  ///
+  /// - [`Error::CorruptedProof`] if proof structure is invalid
+  /// - [`Error::MergeError`] if merging fails
   pub fn calculate_root(
     &self,
     leaves: Vec<(u64, M::Item)>,
@@ -292,6 +454,9 @@ where
     calculate_root::<M, _>(leaves, self.mmr_size, self.proof.iter())
   }
 
+  /// Compute root with a new leaf not in original MMR.
+  ///
+  /// Used for incremental verification.
   pub fn calculate_root_with_new_leaf(
     &self,
     mut leaves: Vec<(u64, M::Item)>,
@@ -324,6 +489,11 @@ where
     }
   }
 
+  /// Verify that leaves produce the given root.
+  ///
+  /// ## Returns
+  ///
+  /// `true` if computed root matches, `false` otherwise.
   pub fn verify(
     &self,
     root: M::Item,
@@ -334,6 +504,9 @@ where
       .map(|calculated_root| calculated_root == root)
   }
 
+  /// Verify incrementally with new elements.
+  ///
+  /// Used to verify a proof from older MMR state against newer root.
   pub fn verify_incremental(
     &self,
     root: M::Item,

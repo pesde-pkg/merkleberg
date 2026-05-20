@@ -1,3 +1,8 @@
+//! Utility types for MMR storage.
+//!
+//! Provides [`MemStore`] for in-memory storage, suitable for testing and
+//! small datasets.
+
 use crate::collections::BTreeMap;
 use crate::merge::Merge;
 use crate::mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
@@ -5,6 +10,14 @@ use crate::vec::Vec;
 use core::convert::Infallible;
 use std::sync::{Arc, RwLock};
 
+/// In-memory storage backend for MMR.
+///
+/// Simple `BTreeMap`-based store using `RwLock` for thread safety.
+/// Suitable for testing and small datasets.
+///
+/// ## Cloning
+///
+/// `MemStore` is cloneable, enabling MMR instances to share storage.
 #[derive(Clone)]
 pub struct MemStore<T>(Arc<RwLock<BTreeMap<u64, T>>>);
 
@@ -15,6 +28,7 @@ impl<T> Default for MemStore<T> {
 }
 
 impl<T> MemStore<T> {
+  /// Create empty store.
   pub fn new() -> Self {
     MemStore(Arc::new(RwLock::new(Default::default())))
   }
@@ -52,4 +66,12 @@ impl<T: Send + Sync> MMRStoreWriteOps<T> for MemStore<T> {
   }
 }
 
+/// Type alias for MMR with in-memory store.
+///
+/// ```rust,ignore
+/// use merkleberg::{MemMMR, DigestMerge};
+/// use sha2::Sha256;
+///
+/// let mmr: MemMMR<DigestMerge<Sha256>> = MMR::new(0, MemStore::default());
+/// ```
 pub type MemMMR<M> = crate::MMR<M, MemStore<<M as Merge>::Item>>;

@@ -2,12 +2,29 @@ use crate::vec::Vec;
 use core::error::Error;
 use core::future::Future;
 
+/// Batch of uncommitted MMR elements.
+///
+/// Elements added via [`push`] are buffered into memory until [`commit`] 
+/// is called. 
+/// 
+/// Useful since individual writes need to hold an exclusive lock for a 
+/// commit. Batching allows for holding a singular lock for multiple commits. 
+///
+/// ## Inspecting Batch
+///
+/// ```rust,ignore
+/// let batch = mmr.batch();
+/// for (pos, elems) in batch {
+///     println!("Uncommitted at {}: {} elements", pos, elems.len());
+/// }
+/// ```
 pub struct MMRBatch<Elem, Store> {
   memory_batch: Vec<(u64, Vec<Elem>)>,
   store: Store,
 }
 
 impl<Elem, Store> MMRBatch<Elem, Store> {
+  /// Create batch with store backend.
   pub fn new(store: Store) -> Self {
     MMRBatch {
       memory_batch: Vec::new(),
@@ -15,10 +32,12 @@ impl<Elem, Store> MMRBatch<Elem, Store> {
     }
   }
 
+  /// Append elements to batch (not yet committed).
   pub fn append(&mut self, pos: u64, elems: Vec<Elem>) {
     self.memory_batch.push((pos, elems));
   }
 
+  /// Access underlying store.
   pub fn store(&self) -> &Store {
     &self.store
   }
@@ -27,6 +46,9 @@ impl<Elem, Store> MMRBatch<Elem, Store> {
 impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
   MMRBatch<Elem, Store>
 {
+  /// Fetch element from batch or store.
+  ///
+  /// Checks batch first, then falls back to store.
   pub async fn get_elem(&self, pos: u64) -> Result<Option<Elem>, Store::Error> {
     for (start_pos, elems) in self.memory_batch.iter().rev() {
       if pos < *start_pos {
@@ -40,6 +62,7 @@ impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
     self.store.get_elem(pos).await
   }
 
+  /// Fetch multiple elements from batch or store.
   pub async fn get_elems(
     &self,
     positions: Vec<u64>,
@@ -75,6 +98,9 @@ impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
 }
 
 impl<Elem: Send, Store: MMRStoreWriteOps<Elem>> MMRBatch<Elem, Store> {
+  /// Commit batch to storage.
+  ///
+  /// Writes all buffered elements to store via [`MMRStoreWriteOps::append`].
   pub async fn commit(&mut self) -> Result<(), Store::Error> {
     for (pos, elems) in self.memory_batch.drain(..) {
       self.store.append(pos, elems).await?;
@@ -92,13 +118,35 @@ impl<Elem, Store> IntoIterator for MMRBatch<Elem, Store> {
   }
 }
 
+/// Trait for reading elements from MMR storage.
+///
+/// Implement this to provide a custom backend (database, file, etc.).
+///
+/// ## Methods
+///
+/// - [`Self::get_elem`]: Fetch single element by position
+/// - [`Self::get_elems`]: Fetch multiple elements (default: sequential fetches)
+///
+/// Override [`Self::get_elems`] for batch-optimized backends (e.g., SQL).
+///
+/// ## References
+///
+/// See [`crate::util::MemStore`] for a simple in-memory implementation.
 pub trait MMRStoreReadOps<Elem: Send>: Send + Sync {
   type Error: Error + Send + Sync + 'static;
+
+  /// Fetch a single element by position.
+  ///
+  /// Returns `None` if position doesn't exist.
   fn get_elem(
     &self,
     pos: u64,
   ) -> impl Future<Output = Result<Option<Elem>, Self::Error>> + Send;
 
+  /// Fetch multiple elements by positions.
+  ///
+  /// Default implementation calls [`Self::get_elem`] sequentially.
+  /// Override for batch-optimized storage.
   fn get_elems(
     &self,
     positions: impl Iterator<Item = u64> + Send,
@@ -113,8 +161,15 @@ pub trait MMRStoreReadOps<Elem: Send>: Send + Sync {
   }
 }
 
+/// Trait for writing elements to MMR storage.
+///
+/// Implement this to enable [`crate::MMR::commit`] for your backend.
 pub trait MMRStoreWriteOps<Elem>: Send + Sync {
   type Error: Error + Send + Sync + 'static;
+
+  /// Append elements to storage.
+  ///
+  /// Called by [`crate::MMR::commit`] to persist buffered elements.
   fn append(
     &mut self,
     pos: u64,

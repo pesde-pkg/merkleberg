@@ -1,3 +1,74 @@
+//! MMRIVER - Merkle Mountain Range for Immediately Verifiable and Replicable Commitments.
+//!
+//! [`MMRIVER`] provides an alternative MMR structure with:
+//! - Accumulator-based roots (list of peaks, not single hash)
+//! - Consistency proofs between tree states
+//!
+//! Unlike standard [`MMR`] which bags peaks into a single root, MMRIVER
+//! keeps peaks as a list (accumulator). This enables:
+//! - Verification of individual peak membership
+//! - Consistency proofs showing tree evolution
+//!
+//! Consistency proofs show that old headers are included in new state.
+//! 
+//! ## Usage
+//! 
+//! ```rust
+//! use merkleberg::{MMRIVER, Merge, DigestMerge, util::MemStore};
+//! use sha2::Sha256;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Create MMRIVER with SHA-256 hashing
+//!     let store = MemStore::default();
+//!     let mut mmriver: MMRIVER<DigestMerge<Sha256>, _> = MMRIVER::new(0, store);
+//!
+//!     // Add elements
+//!     for i in 0u64..10 {
+//!         mmriver.push(&i.to_be_bytes()).await?;
+//!     }
+//!     mmriver.commit().await?;
+//!
+//!     // Get the accumulator (list of peaks) - unique to MMRIVER
+//!     let accumulator = mmriver.get_accumulator().await?;
+//!     
+//!     // Generate inclusion proof for leaf at node index 0
+//!     let proof = mmriver.gen_inclusion_proof(0).await?;
+//!     
+//!     // Compute leaf hash for verification
+//!     let leaf_hash = DigestMerge::<Sha256>::leaf_hash(&0u64.to_be_bytes())?;
+//!     
+//!     // Verify against the accumulator
+//!     let is_valid = proof.verify(leaf_hash, &accumulator)?;
+//!     assert!(is_valid);
+//!
+//!     // Save state for consistency proof demonstration
+//!     let old_size = mmriver.mmr_size();
+//!     let old_accumulator = accumulator;
+//!
+//!     // Add more elements
+//!     for i in 10u64..20 {
+//!         mmriver.push(&i.to_be_bytes()).await?;
+//!     }
+//!     mmriver.commit().await?;
+//!
+//!     // Generate consistency proof showing old state in new state
+//!     let new_accumulator = mmriver.get_accumulator().await?;
+//!     let consistency_proof = mmriver.gen_consistency_proof(old_size).await?;
+//!
+//!     // Verify old accumulator is consistent with new accumulator
+//!     let is_consistent = consistency_proof.verify(old_accumulator, &new_accumulator)?;
+//!     assert!(is_consistent);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## References
+//!
+//! - [IETF MMRIVER draft](https://github.com/robinbryce/merkle-mountain-range-proofs)
+//! - [Wikipedia: Merkle tree](https://en.wikipedia.org/wiki/Merkle_tree)
+
 use crate::Error;
 use crate::borrow::Cow;
 use crate::error::UserError;
@@ -10,6 +81,31 @@ use crate::vec;
 use crate::vec::Vec;
 use core::marker::PhantomData;
 
+/// An MMR structure that retains peaks as an accumulator rather than bagging them into a single root.
+///
+/// ## Accumulator vs. Bagged Root
+///
+/// A standard [`MMR`] collapses all peaks into a single hash (bagging). `MMRIVER` instead
+/// retains peaks as an ordered list (i.e., the accumulator) where each entry is the root
+/// hash of one perfect binary subtree. This means the root of an `MMRIVER` is a list rather
+/// than a singular value.
+///
+/// ## Capabilities
+///
+/// Retaining peaks individually enables two things a bagged root cannot support efficiently:
+///
+/// 1. Peak membership: prove that a specific peak hash belongs to the current accumulator
+///    without rehashing unrelated peaks.
+/// 2. Consistency proofs: given an old accumulator and a new one, produce a proof that
+///    every element committed in the old state is also committed in the new state, without
+///    having to process the the full append history.
+///
+/// ## Type Parameters
+///
+/// - `M`: the [`Merge`] strategy, which defines the item type (`M::Item`) and how two
+///   child hashes are combined into a parent hash.
+/// - `S`: the backing store, which must implement [`MMRStoreReadOps`] and
+///   [`MMRStoreWriteOps`] for `M::Item`.
 pub struct MMRIVER<M: Merge, S> {
   mmr_size: u64,
   batch: MMRBatch<M::Item, S>,
@@ -17,6 +113,12 @@ pub struct MMRIVER<M: Merge, S> {
 }
 
 impl<M: Merge, S> MMRIVER<M, S> {
+  /// Create a new MMRIVER.
+  ///
+  /// ## Parameters
+  ///
+  /// - `mmr_size`: Initial size (0 for empty, existing size if continuing)
+  /// - `store`: Storage backend implementing [`MMRStoreReadOps`]
   pub fn new(mmr_size: u64, store: S) -> Self {
     MMRIVER {
       mmr_size,
@@ -25,18 +127,22 @@ impl<M: Merge, S> MMRIVER<M, S> {
     }
   }
 
+  /// Returns the current MMR size.
   pub fn mmr_size(&self) -> u64 {
     self.mmr_size
   }
 
+  /// Returns true if the MMR has no elements.
   pub fn is_empty(&self) -> bool {
     self.mmr_size == 0
   }
 
+  /// Access the uncommitted batch.
   pub fn batch(&self) -> &MMRBatch<M::Item, S> {
     &self.batch
   }
 
+  /// Access the underlying store.
   pub fn store(&self) -> &S {
     self.batch.store()
   }
@@ -67,6 +173,9 @@ where
       .map(Cow::Owned)
   }
 
+  /// Add a new element.
+  ///
+  /// Returns the position of the new leaf.
   pub async fn push(&mut self, data: &[u8]) -> Result<u64, Error> {
     let elem = M::leaf_hash(data).map_err(|e| Error::MergeError(e.into()))?;
     let elem_pos = self.mmr_size;
@@ -96,6 +205,10 @@ where
     Ok(elem_pos)
   }
 
+  /// Get the accumulator (list of peaks).
+  ///
+  /// Unlike [`crate::MMR::get_root`], this returns all peaks as a vector.
+  /// The root can be computed separately by bagging these peaks.
   pub async fn get_accumulator(&self) -> Result<Vec<M::Item>, Error> {
     if self.mmr_size == 0 {
       return Err(Error::GetRootOnEmpty);
@@ -112,6 +225,9 @@ where
     Ok(peaks)
   }
 
+  /// Get the root (bagged accumulator).
+  ///
+  /// Bags peaks from right to left to produce single hash.
   pub async fn get_root(&self) -> Result<M::Item, Error> {
     let peaks = self.get_accumulator().await?;
     self
@@ -132,6 +248,17 @@ where
     Ok(rhs_peaks.pop())
   }
 
+  /// Generate consistency proof between two states.
+  ///
+  /// Proves that `mmr_size_from` state is included in current state.
+  ///
+  /// ## Parameters
+  ///
+  /// - `mmr_size_from`: Previous MMR size
+  ///
+  /// ## Returns
+  ///
+  /// [`ConsistencyProof`] showing state evolution.
   pub async fn gen_consistency_proof(
     &self,
     mmr_size_from: u64,
@@ -173,6 +300,15 @@ where
     ))
   }
 
+  /// Generate inclusion proof for a leaf.
+  ///
+  /// ## Parameters
+  ///
+  /// - `i`: Index of the leaf to prove
+  ///
+  /// ## Returns
+  ///
+  /// [`InclusionProof`] with Merkle path to peak.
   pub async fn gen_inclusion_proof(
     &self,
     i: u64,
@@ -203,6 +339,7 @@ where
   M::Item: Send,
   S::Error: Into<UserError>,
 {
+  /// Persist uncommitted elements.
   pub async fn commit(&mut self) -> Result<(), Error> {
     self
       .batch
@@ -212,6 +349,12 @@ where
   }
 }
 
+/// Inclusion proof for MMRIVER.
+///
+/// Proves that a leaf exists in the accumulator.
+/// 
+/// Unlike [`crate::mmr::InclusionProof`], which checks against a singular root, 
+/// this checks against an accumulator (list of peaks) instead.
 #[derive(Debug)]
 pub struct InclusionProof<M: Merge> {
   index: u64,
@@ -224,6 +367,7 @@ where
   M::Item: Clone + PartialEq,
   M::Error: Into<UserError>,
 {
+  /// Create proof from raw components.
   pub fn new(index: u64, proof: Vec<M::Item>) -> Self {
     InclusionProof {
       index,
@@ -232,22 +376,38 @@ where
     }
   }
 
+  /// Leaf index being proven.
   pub fn index(&self) -> u64 {
     self.index
   }
 
+  /// Merkle path elements.
   pub fn proof(&self) -> &[M::Item] {
     &self.proof
   }
 
+  /// Compute the root hash from leaf and proof.
   pub fn included_root(&self, nodehash: M::Item) -> Result<M::Item, M::Error> {
     included_root::<M>(self.index, nodehash, &self.proof)
   }
 
-  pub fn verify(&self, accumulator: &[M::Item]) -> Result<bool, Error> {
-    let root = self
-      .included_root(self.proof.last().cloned().ok_or(Error::CorruptedProof)?)
-      .map_err(|e| Error::MergeError(e.into()))?;
+  /// Verify against an accumulator.
+  ///
+  /// ## Parameters
+  ///
+  /// - `nodehash`: The leaf hash being proven (use `M::leaf_hash(data)` to compute)
+  /// - `accumulator`: The accumulator (list of peaks) to verify against
+  ///
+  /// ## Returns
+  ///
+  /// `true` if computed peak matches any peak in accumulator.
+  pub fn verify(
+    &self,
+    nodehash: M::Item,
+    accumulator: &[M::Item],
+  ) -> Result<bool, Error> {
+    let root =
+      self.included_root(nodehash).map_err(|e| Error::MergeError(e.into()))?;
 
     let peak_positions = PeaksMMRIVERIter::new(self.index);
     if peak_positions.len() == 0 {
@@ -263,6 +423,10 @@ where
   }
 }
 
+/// Proof that two MMRIVER states are consistent.
+///
+/// Shows that an older accumulator is a prefix of a newer accumulator.
+/// Used to verify blockchain header chain continuity.
 #[derive(Debug)]
 pub struct ConsistencyProof<M: Merge> {
   mmr_size_from: u64,
@@ -276,6 +440,7 @@ where
   M::Item: Clone + PartialEq,
   M::Error: Into<UserError>,
 {
+  /// Create proof from raw components.
   pub fn new(
     mmr_size_from: u64,
     mmr_size_to: u64,
@@ -289,18 +454,22 @@ where
     }
   }
 
+  /// MMR size at proof generation start.
   pub fn mmr_size_from(&self) -> u64 {
     self.mmr_size_from
   }
 
+  /// MMR size at proof generation end.
   pub fn mmr_size_to(&self) -> u64 {
     self.mmr_size_to
   }
 
+  /// Proof paths for each old peak.
   pub fn proof_paths(&self) -> &[Vec<M::Item>] {
     &self.proof_paths
   }
 
+  /// Compute roots that should match old accumulator.
   pub fn consistent_roots(
     &self,
     old_accumulator: Vec<M::Item>,
@@ -329,6 +498,7 @@ where
     Ok(roots)
   }
 
+  /// Verify old accumulator is consistent with new accumulator.
   pub fn verify(
     &self,
     old_accumulator: Vec<M::Item>,
@@ -353,6 +523,9 @@ where
   }
 }
 
+/// Calculate root from inclusion path.
+///
+/// Used internally by [`InclusionProof::included_root`].
 pub fn included_root<M: Merge>(
   i: u64,
   nodehash: M::Item,
