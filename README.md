@@ -170,23 +170,7 @@ may be enabled to make use of `DigestMergeUnsafe` instead.
 [RustCrypto]: https://github.com/RustCrypto/hashes
 [second preimage attacks]: https://en.wikipedia.org/wiki/Merkle_tree#Second_preimage_attack
 
-## Error Handling
-
-Errors use trait objects for flexibility:
-
-```rust,ignore
-type UserError = Box<dyn Error + Send + Sync + 'static>;
-
-pub enum Error {
-    StoreError(UserError),
-    MergeError(UserError),
-    // ...
-}
-```
-
-Custom store/merge errors need only implement `Error + Send + Sync + 'static`.
-
-## Storage Backend
+### Custom Storage Backends
 
 Implement `MMRStoreReadOps` and `MMRStoreWriteOps`:
 
@@ -212,6 +196,26 @@ impl<T: Send + Sync> MMRStoreWriteOps<T> for MyStore {
 }
 ```
 
+For convenience, a lightweight `MemStore` backend is provided by default, which stores trees
+in memory. Storage backends also support batching via `MMRBatch`; multiple items can be pushed
+before committing and actually updating the underlying structure.
+
+## Error Handling
+
+Errors use trait objects for flexibility:
+
+```rust,ignore
+type UserError = Box<dyn Error + Send + Sync + 'static>;
+
+pub enum Error {
+    StoreError(UserError),
+    MergeError(UserError),
+    // ...
+}
+```
+
+Custom store / merge errors need only implement `Error + Send + Sync + 'static`.
+
 ## References
 
 - [OpenTimestamps MMR spec](https://github.com/opentimestamps/opentimestamps-server/blob/master/doc/merkle-mountain-range.md)
@@ -230,4 +234,3 @@ This project is dual-licensed under:
 - Mozilla Public License 2.0 - MMRIVER and other modifications made by [@pesde-pkg](https://github.com/pesde-pkg)
 
 See [LICENSE](https://github.com/pesde-pkg/merkleberg/blob/main/LICENSE) for full details.
-
