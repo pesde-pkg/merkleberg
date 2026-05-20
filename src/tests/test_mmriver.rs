@@ -330,5 +330,52 @@ cfg_if::cfg_if! {
       let accumulator = mmr.get_accumulator().await.unwrap();
       assert_eq!(accumulator.len(), 3);
     }
+
+    #[tokio::test]
+    async fn test_secure_mmriver_inclusion_proof() {
+      let store = MemStore::default();
+      let mut mmr = SecureMMRIVER::new(0, store);
+
+      for i in 0u64..21 {
+        mmr.push(&i.to_be_bytes()).await.unwrap();
+      }
+      mmr.commit().await.unwrap();
+
+      let accumulator = mmr.get_accumulator().await.unwrap();
+
+      let proof = mmr.gen_inclusion_proof(0).await.unwrap();
+      assert_eq!(proof.index(), 0);
+
+      let leaf_hash = DigestMerge::<Sha256>::leaf_hash(&0u64.to_be_bytes()).unwrap();
+      assert!(proof.verify(leaf_hash, &accumulator).unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_secure_mmriver_consistency_proof() {
+      let store = MemStore::default();
+      let mut mmr = SecureMMRIVER::new(0, store);
+
+      for i in 0u64..21 {
+        mmr.push(&i.to_be_bytes()).await.unwrap();
+      }
+      mmr.commit().await.unwrap();
+
+      let old_store = MemStore::default();
+      let mut old_mmr = SecureMMRIVER::new(0, old_store);
+
+      for i in 0u64..4 {
+        old_mmr.push(&i.to_be_bytes()).await.unwrap();
+      }
+      old_mmr.commit().await.unwrap();
+
+      let old_accumulator = old_mmr.get_accumulator().await.unwrap();
+      let proof = mmr.gen_consistency_proof(7).await.unwrap();
+
+      assert_eq!(proof.mmr_size_from(), 7);
+      assert_eq!(proof.mmr_size_to(), 39);
+
+      let new_accumulator = mmr.get_accumulator().await.unwrap();
+      assert!(proof.verify(old_accumulator, &new_accumulator).unwrap());
+    }
   }
 }
