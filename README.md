@@ -83,10 +83,10 @@ bagging from right to left into a single hash.
 
 This approach allows for **consistency proofs** alongside the existing inclusion proofs already supported by
 MMR, where any new accumulator can be verified against an existing old accumulator (also known as the [*Reyzin-Yakoubov*]
-property, which is useful for **blockchain header chains**, **verifiable log replication**, **state evolution proofs**,
+property), which is useful for **blockchain header chains**, **verifiable log replication**, **state evolution proofs**,
 etc.
 
-[*ReyzinYakoubov*]: https://eprint.iacr.org/2015/718.pdf
+[*Reyzin-Yakoubov*]: https://eprint.iacr.org/2015/718.pdf
 
 ```rust,ignore
 use merkleberg::{MMRIVER, DigestMerge, util::MemStore, Merge};
