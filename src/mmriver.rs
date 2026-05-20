@@ -357,8 +357,14 @@ where
 /// this checks against an accumulator (list of peaks) instead.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(bound(serialize = "M::Item: serde::Serialize")))]
-#[cfg_attr(feature = "serde", serde(bound(deserialize = "M::Item: serde::Deserialize<'de>")))]
+#[cfg_attr(
+  feature = "serde",
+  serde(bound(serialize = "M::Item: serde::Serialize"))
+)]
+#[cfg_attr(
+  feature = "serde",
+  serde(bound(deserialize = "M::Item: serde::Deserialize<'de>"))
+)]
 pub struct InclusionProof<M: Merge> {
   index: u64,
   proof: Vec<M::Item>,
@@ -434,8 +440,14 @@ where
 /// Used to verify blockchain header chain continuity.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(bound(serialize = "M::Item: serde::Serialize")))]
-#[cfg_attr(feature = "serde", serde(bound(deserialize = "M::Item: serde::Deserialize<'de>")))]
+#[cfg_attr(
+  feature = "serde",
+  serde(bound(serialize = "M::Item: serde::Serialize"))
+)]
+#[cfg_attr(
+  feature = "serde",
+  serde(bound(deserialize = "M::Item: serde::Deserialize<'de>"))
+)]
 pub struct ConsistencyProof<M: Merge> {
   mmr_size_from: u64,
   mmr_size_to: u64,
