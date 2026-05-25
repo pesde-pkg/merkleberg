@@ -13,6 +13,7 @@ use crate::vec;
 use crate::vec::Vec;
 
 /// Convert leaf index to MMR position.
+#[must_use]
 pub fn leaf_index_to_pos(index: u64) -> u64 {
   // mmr_size - H - 1, H is the height(intervals) of last peak
   leaf_index_to_mmr_size(index) - (index + 1).trailing_zeros() as u64 - 1
@@ -21,6 +22,7 @@ pub fn leaf_index_to_pos(index: u64) -> u64 {
 /// Convert leaf index to MMR size.
 ///
 /// Returns total positions (leaves + nodes) for a given leaf count.
+#[must_use]
 pub fn leaf_index_to_mmr_size(index: u64) -> u64 {
   // leaf index start with 0
   let leaves_count = index + 1;
@@ -32,6 +34,7 @@ pub fn leaf_index_to_mmr_size(index: u64) -> u64 {
 }
 
 /// Compute height of position in tree.
+#[must_use]
 pub fn pos_height_in_tree(mut pos: u64) -> u8 {
   if pos == 0 {
     return 0;
@@ -42,17 +45,19 @@ pub fn pos_height_in_tree(mut pos: u64) -> u8 {
     if pos >= peak_size {
       pos -= peak_size;
     }
-    peak_size >>= 1;
+    peak_size >>= 1u64;
   }
   pos as u8
 }
 
 /// Offset to parent from node at given height.
+#[must_use]
 pub fn parent_offset(height: u8) -> u64 {
   2 << height
 }
 
 /// Offset to sibling from node at given height.
+#[must_use]
 pub fn sibling_offset(height: u8) -> u64 {
   (2 << height) - 1
 }
@@ -89,6 +94,7 @@ pub fn sibling_offset(height: u8) -> u64 {
 ///  / \   /  \
 /// 0   1 3   4
 /// ```
+#[must_use]
 pub fn get_peak_map(mmr_size: u64) -> u64 {
   if mmr_size == 0 {
     return 0;
@@ -98,18 +104,19 @@ pub fn get_peak_map(mmr_size: u64) -> u64 {
   let mut peak_size = u64::MAX >> pos.leading_zeros();
   let mut peak_map = 0;
   while peak_size > 0 {
-    peak_map <<= 1;
+    peak_map <<= 1u64;
     if pos >= peak_size {
       pos -= peak_size;
       peak_map |= 1;
     }
-    peak_size >>= 1;
+    peak_size >>= 1u64;
   }
 
   peak_map
 }
 
 /// Iterator over peak positions in MMR.
+#[must_use]
 pub struct PeaksIter {
   pos: u64,
   peak_size: u64,
@@ -147,7 +154,7 @@ impl Iterator for PeaksIter {
         self.peaks_sum += self.peak_size;
         peak_opt = Some(peak);
       }
-      self.peak_size >>= 1;
+      self.peak_size >>= 1u64;
     }
 
     peak_opt
@@ -157,6 +164,7 @@ impl Iterator for PeaksIter {
     if self.peak_size == 0 {
       return (0, Some(0));
     }
+    #[allow(clippy::integer_division)]
     let remaining_peaks = (self.pos / self.peak_size + 1).count_ones() as usize;
     (remaining_peaks, Some(remaining_peaks))
   }
@@ -181,6 +189,7 @@ fn most_sig_bit(pos: u64) -> u64 {
 }
 
 /// Compute height at index for MMRIVER.
+#[must_use]
 pub fn index_height_mmriver(i: u64) -> u8 {
   let mut pos = i + 1;
   while !all_ones(pos) {
@@ -193,6 +202,7 @@ pub fn index_height_mmriver(i: u64) -> u8 {
 ///
 /// Uses MMRIVER-specific indexing scheme.
 #[derive(Clone)]
+#[must_use]
 pub struct PeaksMMRIVERIter {
   peak: u64,
   remaining: u64,
@@ -230,6 +240,7 @@ impl Iterator for PeaksMMRIVERIter {
 impl ExactSizeIterator for PeaksMMRIVERIter {}
 
 /// Compute inclusion proof path for MMRIVER.
+#[must_use]
 pub fn inclusion_proof_path(mut i: u64, c: u64) -> Vec<u64> {
   let mut path = vec![];
   let mut g = index_height_mmriver(i);

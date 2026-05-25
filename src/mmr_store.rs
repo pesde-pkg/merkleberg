@@ -53,11 +53,11 @@ impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
     for (start_pos, elems) in self.memory_batch.iter().rev() {
       if pos < *start_pos {
         continue;
-      } else if pos < start_pos + elems.len() as u64 {
-        return Ok(elems.get((pos - start_pos) as usize).cloned());
-      } else {
-        break;
       }
+      if pos < start_pos + elems.len() as u64 {
+        return Ok(elems.get((pos - start_pos) as usize).cloned());
+      }
+      break;
     }
     self.store.get_elem(pos).await
   }
@@ -89,7 +89,7 @@ impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
     if !missing_positions.is_empty() {
       let fetched = self.store.get_elems(missing_positions.into_iter()).await?;
       for (idx, elem) in missing_indices.iter().zip(fetched.iter()) {
-        results[*idx] = elem.clone();
+        results[*idx].clone_from(elem);
       }
     }
 

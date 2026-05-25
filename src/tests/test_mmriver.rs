@@ -90,14 +90,14 @@ cfg_if::cfg_if! {
 cfg_if::cfg_if! {
   if #[cfg(feature = "unsafe-digest")] {
     use crate::{
-      helper::{index_height_mmriver, PeaksMMRIVERIter},
+      helper::index_height_mmriver,
       mmriver::{MMRIVER, included_root},
       util::MemStore,
     };
     #[allow(deprecated)]
     use crate::merge::DigestMergeUnsafe;
     use digest::Output;
-    use sha2::{Digest, Sha256};
+    use sha2::{Digest as _, Sha256};
 
     #[allow(deprecated)]
     type SpecMMRIVER = MMRIVER<DigestMergeUnsafe<Sha256>, MemStore<Output<Sha256>>>;
@@ -231,21 +231,21 @@ cfg_if::cfg_if! {
         0x51, 0x58, 0x5a, 0x8c, 0xfd, 0x14, 0xfb, 0x08, 0xce, 0x11, 0xad, 0xdb,
         0x30, 0x07, 0x5a, 0x96, 0x30, 0x95, 0x82, 0xa7,
       ];
-      assert_eq!(to_fixed_32(accumulator[0].clone()), expected_peak30);
+      assert_eq!(to_fixed_32(accumulator[0]), expected_peak30);
 
       let expected_peak37: [u8; 32] = [
         0x6a, 0x16, 0x91, 0x05, 0xdc, 0xc4, 0x87, 0xdb, 0xba, 0xe5, 0x74, 0x7a,
         0x0f, 0xd9, 0xb1, 0xd3, 0x3a, 0x40, 0x32, 0x0c, 0xf9, 0x1c, 0xf9, 0xa3,
         0x23, 0x57, 0x91, 0x39, 0xe7, 0xff, 0x72, 0xaa,
       ];
-      assert_eq!(to_fixed_32(accumulator[1].clone()), expected_peak37);
+      assert_eq!(to_fixed_32(accumulator[1]), expected_peak37);
 
       let expected_peak38: [u8; 32] = [
         0xe9, 0xa5, 0xf5, 0x20, 0x1e, 0xb3, 0xc3, 0xc8, 0x56, 0xe0, 0xa2, 0x24,
         0x52, 0x7a, 0xf5, 0xac, 0x7e, 0xb1, 0x76, 0x7f, 0xb1, 0xaf, 0xf9, 0xbd,
         0x53, 0xba, 0x41, 0xa6, 0x0c, 0xde, 0x97, 0x85,
       ];
-      assert_eq!(to_fixed_32(accumulator[2].clone()), expected_peak38);
+      assert_eq!(to_fixed_32(accumulator[2]), expected_peak38);
     }
 
     #[tokio::test]
@@ -274,7 +274,7 @@ cfg_if::cfg_if! {
       assert_eq!(proof.mmr_size_to(), 39);
 
       let new_accumulator = mmr.get_accumulator().await.unwrap();
-      let result = proof.verify(old_accumulator, &new_accumulator).unwrap();
+      let result = proof.verify(&old_accumulator, &new_accumulator).unwrap();
       assert!(result);
     }
 
@@ -287,7 +287,7 @@ cfg_if::cfg_if! {
       let proof = mmr.gen_consistency_proof(15).await.unwrap();
 
       let new_accumulator = mmr.get_accumulator().await.unwrap();
-      let result = proof.verify(old_accumulator, &new_accumulator).unwrap();
+      let result = proof.verify(&old_accumulator, &new_accumulator).unwrap();
       assert!(result);
     }
 
@@ -300,7 +300,7 @@ cfg_if::cfg_if! {
       let proof = mmr.gen_consistency_proof(31).await.unwrap();
 
       let new_accumulator = mmr.get_accumulator().await.unwrap();
-      let result = proof.verify(old_accumulator, &new_accumulator).unwrap();
+      let result = proof.verify(&old_accumulator, &new_accumulator).unwrap();
       assert!(result);
     }
 

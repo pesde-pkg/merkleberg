@@ -1,7 +1,7 @@
 use proptest::proptest;
 
 use super::{MergeNumberHash, NumberHash};
-use crate::merge::Merge;
+use crate::merge::Merge as _;
 use crate::util::{MemMMR, MemStore};
 
 proptest! {
@@ -41,11 +41,10 @@ async fn test_incremental_with_params(start: u32, steps: usize, turns: usize) {
     mmr.commit().await.expect("commit changes");
     let proof = mmr.gen_proof(new_positions).await.expect("gen proof");
     let root = mmr.get_root().await.expect("get root");
-    let result = proof.verify_incremental(root, prev_root, leaves).unwrap();
+    let result = proof.verify_incremental(&root, &prev_root, leaves).unwrap();
     assert!(
       result,
-      "start: {}, steps: {}, turn: {}, curr: {}",
-      start, steps, turn, curr
+      "start: {start}, steps: {steps}, turn: {turn}, curr: {curr}"
     );
   }
 }

@@ -378,6 +378,7 @@ where
   M::Error: Into<UserError>,
 {
   /// Create proof from raw components.
+  #[must_use]
   pub fn new(index: u64, proof: Vec<M::Item>) -> Self {
     InclusionProof {
       index,
@@ -387,11 +388,13 @@ where
   }
 
   /// Leaf index being proven.
+  #[must_use]
   pub fn index(&self) -> u64 {
     self.index
   }
 
   /// Merkle path elements.
+  #[must_use]
   pub fn proof(&self) -> &[M::Item] {
     &self.proof
   }
@@ -462,6 +465,7 @@ where
   M::Error: Into<UserError>,
 {
   /// Create proof from raw components.
+  #[must_use]
   pub fn new(
     mmr_size_from: u64,
     mmr_size_to: u64,
@@ -476,16 +480,19 @@ where
   }
 
   /// MMR size at proof generation start.
+  #[must_use]
   pub fn mmr_size_from(&self) -> u64 {
     self.mmr_size_from
   }
 
   /// MMR size at proof generation end.
+  #[must_use]
   pub fn mmr_size_to(&self) -> u64 {
     self.mmr_size_to
   }
 
   /// Proof paths for each old peak.
+  #[must_use]
   pub fn proof_paths(&self) -> &[Vec<M::Item>] {
     &self.proof_paths
   }
@@ -493,7 +500,7 @@ where
   /// Compute roots that should match old accumulator.
   pub fn consistent_roots(
     &self,
-    old_accumulator: Vec<M::Item>,
+    old_accumulator: &[M::Item],
   ) -> Result<Vec<M::Item>, Error> {
     let from_peaks: Vec<u64> =
       PeaksMMRIVERIter::new(self.mmr_size_from - 1).collect();
@@ -522,7 +529,7 @@ where
   /// Verify old accumulator is consistent with new accumulator.
   pub fn verify(
     &self,
-    old_accumulator: Vec<M::Item>,
+    old_accumulator: &[M::Item],
     new_accumulator: &[M::Item],
   ) -> Result<bool, Error> {
     let proven = self.consistent_roots(old_accumulator)?;
@@ -556,10 +563,9 @@ where
   M::Item: Clone,
 {
   let mut root = nodehash;
-  let mut g = index_height_mmriver(i);
   let mut current_i = i;
 
-  for sibling in proof {
+  for (g, sibling) in (index_height_mmriver(i)..).zip(proof.iter()) {
     if index_height_mmriver(current_i + 1) > g {
       current_i += 1;
       root = M::merge_pos(current_i + 1, sibling, &root)?;
@@ -567,7 +573,6 @@ where
       current_i += 2 << g;
       root = M::merge_pos(current_i + 1, &root, sibling)?;
     }
-    g += 1;
   }
 
   Ok(root)

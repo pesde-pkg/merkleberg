@@ -43,13 +43,13 @@ impl Merge for MergeNumberHash {
 
   fn merge_pos(
     _pos: u64,
-    lhs: &Self::Item,
-    rhs: &Self::Item,
+    left: &Self::Item,
+    right: &Self::Item,
   ) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
-    hasher.update(&lhs.0);
-    hasher.update(&rhs.0);
+    hasher.update(&left.0);
+    hasher.update(&right.0);
     hasher.finalize(&mut hash);
     Ok(NumberHash(hash.to_vec().into()))
   }

@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use merkleberg::{MMRIVER, Merge, util::MemStore};
-use rand::{seq::SliceRandom, thread_rng};
+use rand::{seq::SliceRandom as _, thread_rng};
 use std::sync::LazyLock;
 
 use blake2b_rs::{Blake2b, Blake2bBuilder};
@@ -39,13 +39,13 @@ impl Merge for MergeNumberHash {
 
   fn merge_pos(
     _pos: u64,
-    lhs: &Self::Item,
-    rhs: &Self::Item,
+    left: &Self::Item,
+    right: &Self::Item,
   ) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
-    hasher.update(&lhs.0);
-    hasher.update(&rhs.0);
+    hasher.update(&left.0);
+    hasher.update(&right.0);
     hasher.finalize(&mut hash);
     Ok(NumberHash(hash.to_vec().into()))
   }
@@ -86,7 +86,7 @@ fn bench(c: &mut Criterion) {
   {
     let mut group = c.benchmark_group("MMRIVER insertion");
     let inputs = [10_000, 100_000, 1_000_000];
-    for input in inputs.iter() {
+    for input in &inputs {
       group.bench_with_input(
         BenchmarkId::new("times", input),
         &input,
@@ -112,15 +112,16 @@ fn bench(c: &mut Criterion) {
 
   c.bench_function("MMRIVER verify inclusion proof", |b| {
     let (mmr_size, store, positions) = prepare_mmriver(1_000_000);
-    let mmr = MMRIVER::<MergeNumberHash, _>::new(mmr_size, store.clone());
+    let mmr = MMRIVER::<MergeNumberHash, _>::new(mmr_size, store);
     let mut rng = thread_rng();
     let accumulator: Vec<NumberHash> =
       RT.block_on(async { mmr.get_accumulator().await.unwrap() });
     let proofs: Vec<_> = RT.block_on(async {
       let mut proofs = Vec::new();
-      for _ in 0..10_000 {
+      for _ in 0i16..10_000 {
         let pos = positions.choose(&mut rng).unwrap();
         let proof = mmr.gen_inclusion_proof(*pos).await.unwrap();
+        #[allow(clippy::integer_division)]
         let i = leaf_index_to_mmr_index(*pos as u64 / 2);
         let leaf_hash = MergeNumberHash::leaf_hash(&i.to_be_bytes()).unwrap();
         proofs.push((pos, proof, leaf_hash));
@@ -138,8 +139,8 @@ fn bench(c: &mut Criterion) {
     let (mmr_size, store, _) = prepare_mmriver(1_000_000);
     let mmr = MMRIVER::<MergeNumberHash, _>::new(mmr_size, store);
 
-    let sizes = [7, 15, 31, 255, 1023, 4095, 16383, 65535, 262143, 1_048_575];
-    for size in sizes.iter() {
+    let sizes = [7, 15, 31, 255, 1023, 4095, 16383, 65535, 262_143, 1_048_575];
+    for size in &sizes {
       group.bench_with_input(
         BenchmarkId::new("gen from mmr_size", size),
         &size,
@@ -154,16 +155,16 @@ fn bench(c: &mut Criterion) {
 
   c.bench_function("MMRIVER verify consistency proof", |b| {
     let (mmr_size, store, _) = prepare_mmriver(1_000_000);
-    let mmr = MMRIVER::<MergeNumberHash, _>::new(mmr_size, store.clone());
+    let mmr = MMRIVER::<MergeNumberHash, _>::new(mmr_size, store);
     let new_accumulator: Vec<NumberHash> =
       RT.block_on(async { mmr.get_accumulator().await.unwrap() });
 
-    let old_sizes = [7, 15, 31, 255, 1023, 4095, 16383];
+    let old_sizes: [u64; _] = [7, 15, 31, 255, 1023, 4095, 16383];
 
     let proofs: Vec<_> = {
       let mut results = Vec::new();
-      for from_size in old_sizes.iter() {
-        let leaf_count = (*from_size + 1) / 2;
+      for &from_size in &old_sizes {
+        let leaf_count = from_size.div_ceil(2);
         let (old_mmr_size, old_store, _) = prepare_mmriver(leaf_count);
         let old_acc: Vec<NumberHash> = RT.block_on(async {
           MMRIVER::<MergeNumberHash, _>::new(old_mmr_size, old_store)
@@ -172,7 +173,7 @@ fn bench(c: &mut Criterion) {
             .unwrap()
         });
         let proof = RT.block_on(async {
-          mmr.gen_consistency_proof(*from_size).await.unwrap()
+          mmr.gen_consistency_proof(from_size).await.unwrap()
         });
         results.push((old_acc, proof));
       }
@@ -182,7 +183,7 @@ fn bench(c: &mut Criterion) {
     let mut rng = thread_rng();
     b.iter(|| {
       let (old_acc, proof) = proofs.choose(&mut rng).unwrap();
-      proof.verify(old_acc.clone(), &new_accumulator).unwrap();
+      proof.verify(old_acc, &new_accumulator).unwrap();
     });
   });
 

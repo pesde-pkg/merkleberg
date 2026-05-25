@@ -29,6 +29,7 @@ impl<T> Default for MemStore<T> {
 
 impl<T> MemStore<T> {
   /// Create empty store.
+  #[must_use]
   pub fn new() -> Self {
     MemStore(Arc::new(RwLock::new(Default::default())))
   }

@@ -4,8 +4,8 @@ extern crate criterion;
 use criterion::{BenchmarkId, Criterion};
 
 use bytes::Bytes;
-use merkleberg::{Error, MMR, MMRStoreReadOps, Merge, util::MemStore};
-use rand::{seq::SliceRandom, thread_rng};
+use merkleberg::{Error, MMR, MMRStoreReadOps as _, Merge, util::MemStore};
+use rand::{seq::SliceRandom as _, thread_rng};
 use std::convert::{Infallible, TryFrom};
 
 use blake2b_rs::{Blake2b, Blake2bBuilder};
@@ -43,13 +43,13 @@ impl Merge for MergeNumberHash {
 
   fn merge_pos(
     _pos: u64,
-    lhs: &Self::Item,
-    rhs: &Self::Item,
+    left: &Self::Item,
+    right: &Self::Item,
   ) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
-    hasher.update(&lhs.0);
-    hasher.update(&rhs.0);
+    hasher.update(&left.0);
+    hasher.update(&right.0);
     hasher.finalize(&mut hash);
     Ok(NumberHash(hash.to_vec().into()))
   }
@@ -75,7 +75,7 @@ fn bench(c: &mut Criterion) {
   {
     let mut group = c.benchmark_group("MMR insertion");
     let inputs = [10_000, 100_000, 1_000_000];
-    for input in inputs.iter() {
+    for input in &inputs {
       group.bench_with_input(
         BenchmarkId::new("times", input),
         &input,
@@ -108,7 +108,7 @@ fn bench(c: &mut Criterion) {
     let root: NumberHash = rt.block_on(async { mmr.get_root().await.unwrap() });
     let proofs: Vec<_> = rt.block_on(async {
       let mut proofs = Vec::new();
-      for _ in 0..10_000 {
+      for _ in 0i16..10_000 {
         let pos = positions.choose(&mut rng).unwrap();
         let elem = store.get_elem(*pos).await.unwrap().unwrap();
         let proof = mmr.gen_proof(vec![*pos]).await.unwrap();
@@ -118,9 +118,7 @@ fn bench(c: &mut Criterion) {
     });
     b.iter(|| {
       let (pos, elem, proof) = proofs.choose(&mut rng).unwrap();
-      proof
-        .verify(root.clone(), vec![(**pos, elem.clone())])
-        .unwrap();
+      proof.verify(&root, vec![(**pos, elem.clone())]).unwrap();
     });
   });
 }

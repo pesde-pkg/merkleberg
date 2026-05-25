@@ -3,7 +3,7 @@ use crate::MMR;
 use crate::leaf_index_to_pos;
 use crate::merge::Merge;
 use crate::mmr::InclusionProof;
-use crate::mmr_store::MMRStoreReadOps;
+use crate::mmr_store::MMRStoreReadOps as _;
 use crate::util::MemStore;
 use bytes::{Bytes, BytesMut};
 use std::convert::Infallible;
@@ -102,15 +102,15 @@ impl Merge for MergeHashWithTD {
 
   fn merge_pos(
     _pos: u64,
-    lhs: &Self::Item,
-    rhs: &Self::Item,
+    left: &Self::Item,
+    right: &Self::Item,
   ) -> Result<Self::Item, Self::Error> {
     let mut hasher = new_blake2b();
     let mut hash = [0u8; 32];
-    hasher.update(&lhs.serialize());
-    hasher.update(&rhs.serialize());
+    hasher.update(&left.serialize());
+    hasher.update(&right.serialize());
     hasher.finalize(&mut hash);
-    let td = lhs.td + rhs.td;
+    let td = left.td + right.td;
     Ok(HashWithTD {
       hash: hash.to_vec().into(),
       td,
@@ -228,6 +228,6 @@ async fn test_insert_header() {
     prove_elem,
     prover.store.get_elem(pos).await.unwrap().unwrap()
   );
-  let result = proof.verify(root, vec![(pos, prove_elem)]).unwrap();
+  let result = proof.verify(&root, vec![(pos, prove_elem)]).unwrap();
   assert!(result);
 }

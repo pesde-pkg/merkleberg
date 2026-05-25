@@ -48,8 +48,7 @@ impl Merge for MergeNumberRange {
     let num = data
       .get(..4)
       .and_then(|b| b.try_into().ok())
-      .map(u32::from_le_bytes)
-      .unwrap_or(0);
+      .map_or(0, u32::from_le_bytes);
     Ok(Self::Item {
       start: num,
       end: num,
@@ -58,12 +57,12 @@ impl Merge for MergeNumberRange {
 
   fn merge_pos(
     _pos: u64,
-    lhs: &Self::Item,
-    rhs: &Self::Item,
+    left: &Self::Item,
+    right: &Self::Item,
   ) -> Result<Self::Item, Self::Error> {
     Ok(Self::Item {
-      start: lhs.start,
-      end: rhs.end,
+      start: left.start,
+      end: right.end,
     })
   }
 
@@ -95,12 +94,12 @@ async fn test_sequence_sub_func(count: u32, proof_elem: Vec<u32>) {
     .await
     .expect("gen_proof");
   for item in proof.proof_items() {
-    assert!(item.is_normalized())
+    assert!(item.is_normalized());
   }
   mmr.commit().await.expect("commit");
   let result = proof
     .verify(
-      root,
+      &root,
       proof_elem
         .iter()
         .map(|elem| {

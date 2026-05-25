@@ -9,7 +9,7 @@ use crate::mmr::InclusionProof;
 use crate::util::{MemMMR, MemStore};
 use faster_hex::hex_string;
 use proptest::prelude::*;
-use rand::{Rng, seq::SliceRandom, thread_rng};
+use rand::{Rng as _, seq::SliceRandom as _, thread_rng};
 
 async fn test_mmr(count: u32, proof_elem: Vec<u32>) {
   let store = MemStore::default();
@@ -32,7 +32,7 @@ async fn test_mmr(count: u32, proof_elem: Vec<u32>) {
   mmr.commit().await.expect("commit changes");
   let result = proof
     .verify(
-      root,
+      &root,
       proof_elem
         .iter()
         .map(|elem| {
@@ -177,9 +177,9 @@ async fn test_invalid_proof_verification(
   impl std::fmt::Debug for MyItem {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
       match self {
-        MyItem::Number(x) => f.write_fmt(format_args!("{}", x)),
+        MyItem::Number(x) => f.write_fmt(format_args!("{x}")),
         MyItem::Merged(a, b) => {
-          f.write_fmt(format_args!("Merged({:#?}, {:#?})", a, b))
+          f.write_fmt(format_args!("Merged({a:#?}, {b:#?})"))
         }
       }
     }
@@ -196,17 +196,19 @@ async fn test_invalid_proof_verification(
       let num = data
         .get(..4)
         .and_then(|b| b.try_into().ok())
-        .map(u32::from_le_bytes)
-        .unwrap_or(0);
+        .map_or(0, u32::from_le_bytes);
       Ok(MyItem::Number(num))
     }
 
     fn merge_pos(
       _pos: u64,
-      lhs: &Self::Item,
-      rhs: &Self::Item,
+      left: &Self::Item,
+      right: &Self::Item,
     ) -> Result<Self::Item, Self::Error> {
-      Ok(MyItem::Merged(Box::new(lhs.clone()), Box::new(rhs.clone())))
+      Ok(MyItem::Merged(
+        Box::new(left.clone()),
+        Box::new(right.clone()),
+      ))
     }
   }
 
@@ -226,12 +228,12 @@ async fn test_invalid_proof_verification(
   }
 
   let mut tampered_entries_to_verify = entries_to_verify.clone();
-  tampered_positions.iter().for_each(|proof_pos| {
-    tampered_entries_to_verify[*proof_pos] = (
-      tampered_entries_to_verify[*proof_pos].0,
+  for &proof_pos in &tampered_positions {
+    tampered_entries_to_verify[proof_pos] = (
+      tampered_entries_to_verify[proof_pos].0,
       MyItem::Number(31337),
-    )
-  });
+    );
+  }
 
   let handrolled_proof: Option<InclusionProof<MyMerge>> =
     if let Some(handrolled_proof_positions) = handrolled_proof_positions {
@@ -247,7 +249,7 @@ async fn test_invalid_proof_verification(
 
   if let Some(handrolled_proof) = handrolled_proof {
     let handrolled_proof_result =
-      handrolled_proof.verify(root.clone(), tampered_entries_to_verify.clone());
+      handrolled_proof.verify(&root, tampered_entries_to_verify.clone());
     assert!(
       handrolled_proof_result.is_err() || !handrolled_proof_result.unwrap()
     );
@@ -255,8 +257,8 @@ async fn test_invalid_proof_verification(
 
   match mmr.gen_proof(positions_to_verify.clone()).await {
     Ok(proof) => {
-      assert!(proof.verify(root.clone(), entries_to_verify).unwrap());
-      assert!(!proof.verify(root, tampered_entries_to_verify).unwrap());
+      assert!(proof.verify(&root, entries_to_verify).unwrap());
+      assert!(!proof.verify(&root, tampered_entries_to_verify).unwrap());
     }
     Err(Error::NodeProofsNotSupported) => {
       assert!(
@@ -265,7 +267,7 @@ async fn test_invalid_proof_verification(
           .any(|pos| pos_height_in_tree(*pos) > 0)
       );
     }
-    Err(e) => panic!("Unexpected error: {}", e),
+    Err(e) => panic!("Unexpected error: {e}"),
   }
 }
 

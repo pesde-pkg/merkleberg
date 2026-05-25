@@ -174,7 +174,7 @@ where
     let mut pos = self.mmr_size;
     let mut peak = 1;
     while (peak_map & peak) != 0 {
-      peak <<= 1;
+      peak <<= 1u64;
       pos += 1;
       let left_pos = pos - peak;
       let left_elem = self.find_elem(left_pos, &elems).await?;
@@ -264,9 +264,8 @@ where
       if pos == peak_pos {
         if queue.is_empty() {
           break;
-        } else {
-          return Err(Error::NodeProofsNotSupported);
         }
+        return Err(Error::NodeProofsNotSupported);
       }
 
       let (sib_pos, parent_pos) = {
@@ -425,6 +424,7 @@ where
   /// Create a proof from raw components.
   ///
   /// Usually obtained via [`MMR::gen_proof`].
+  #[must_use]
   pub fn new(mmr_size: u64, proof: Vec<M::Item>) -> Self {
     InclusionProof {
       mmr_size,
@@ -434,11 +434,13 @@ where
   }
 
   /// MMR size when proof was generated.
+  #[must_use]
   pub fn mmr_size(&self) -> u64 {
     self.mmr_size
   }
 
   /// Proof items (Merkle path and peak hashes).
+  #[must_use]
   pub fn proof_items(&self) -> &[M::Item] {
     &self.proof
   }
@@ -485,7 +487,7 @@ where
       let peaks_pos: Vec<u64> = PeaksIter::new(new_mmr_size).collect();
       let mut i = 0;
       while peaks_pos[i] < new_pos {
-        i += 1
+        i += 1;
       }
       peaks_hashes[i..].reverse();
       calculate_root::<M, _>(
@@ -506,12 +508,12 @@ where
   /// `true` if computed root matches, `false` otherwise.
   pub fn verify(
     &self,
-    root: M::Item,
+    root: &M::Item,
     leaves: Vec<(u64, M::Item)>,
   ) -> Result<bool, Error> {
     self
       .calculate_root(leaves)
-      .map(|calculated_root| calculated_root == root)
+      .map(|calculated_root| calculated_root == *root)
   }
 
   /// Verify incrementally with new elements.
@@ -519,8 +521,8 @@ where
   /// Used to verify a proof from older MMR state against newer root.
   pub fn verify_incremental(
     &self,
-    root: M::Item,
-    prev_root: M::Item,
+    root: &M::Item,
+    prev_root: &M::Item,
     incremental: Vec<M::Item>,
   ) -> Result<bool, Error> {
     let current_leaves_count = get_peak_map(self.mmr_size);
@@ -555,7 +557,7 @@ where
 
     let calculated_prev_root = bagging_peaks_hashes::<M>(prev_peaks)
       .map_err(|e| Error::MergeError(e.into()))?;
-    if calculated_prev_root != prev_root {
+    if calculated_prev_root != *prev_root {
       return Ok(false);
     }
 
@@ -593,9 +595,8 @@ where
     if pos == peak_pos {
       if queue.is_empty() {
         return Ok(item);
-      } else {
-        return Err(Error::CorruptedProof);
       }
+      return Err(Error::CorruptedProof);
     }
     let next_height = pos_height_in_tree(pos + 1);
     let (parent_pos, parent_item) = {
@@ -636,7 +637,7 @@ where
     };
 
     if parent_pos <= peak_pos {
-      queue.push_back((parent_pos, parent_item, height + 1))
+      queue.push_back((parent_pos, parent_item, height + 1));
     } else {
       return Err(Error::CorruptedProof);
     }

@@ -6,14 +6,14 @@ use merkleberg::helper::{
   PeaksMMRIVERIter, inclusion_proof_path, index_height_mmriver,
   leaf_index_to_mmr_size, leaf_index_to_pos,
 };
-use rand::{Rng, thread_rng};
+use rand::{Rng as _, thread_rng};
 
 fn bench(c: &mut Criterion) {
   c.bench_function("leaf_index_to_pos", |b| {
     let mut rng = thread_rng();
     b.iter(|| {
       let leaf_index = rng.gen_range(50_000_000_000..70_000_000_000);
-      leaf_index_to_pos(leaf_index);
+      let _ = leaf_index_to_pos(leaf_index);
     });
   });
 
@@ -21,7 +21,7 @@ fn bench(c: &mut Criterion) {
     let mut rng = thread_rng();
     b.iter(|| {
       let leaf_index = rng.gen_range(50_000_000_000..70_000_000_000);
-      leaf_index_to_mmr_size(leaf_index);
+      let _ = leaf_index_to_mmr_size(leaf_index);
     });
   });
 
@@ -29,7 +29,7 @@ fn bench(c: &mut Criterion) {
     let mut rng = thread_rng();
     b.iter(|| {
       let i = rng.gen_range(0..1_000_000);
-      index_height_mmriver(i);
+      let _ = index_height_mmriver(i);
     });
   });
 
@@ -37,7 +37,7 @@ fn bench(c: &mut Criterion) {
     let mut rng = thread_rng();
     b.iter(|| {
       let i = rng.gen_range(0..1_000_000);
-      PeaksMMRIVERIter::new(i);
+      let _ = PeaksMMRIVERIter::new(i).collect::<Vec<_>>();
     });
   });
 
@@ -46,7 +46,7 @@ fn bench(c: &mut Criterion) {
     b.iter(|| {
       let i = rng.gen_range(0..1000);
       let c = rng.gen_range(1000..2000);
-      inclusion_proof_path(i, c);
+      let _ = inclusion_proof_path(i, c);
     });
   });
 
@@ -55,7 +55,7 @@ fn bench(c: &mut Criterion) {
     b.iter(|| {
       let i = rng.gen_range(0..100_000);
       let c = rng.gen_range(100_000..1_000_000);
-      inclusion_proof_path(i, c);
+      let _ = inclusion_proof_path(i, c);
     });
   });
 }
