@@ -4,7 +4,7 @@ cfg_if::cfg_if! {
     use crate::{
       helper::PeaksMMRIVERIter,
       MMRIVER,
-      merge::Merge,
+      merge::Merge as _,
       util::MemStore,
     };
 
@@ -82,7 +82,7 @@ cfg_if::cfg_if! {
       assert_eq!(proof.mmr_size_to(), 39);
 
       let new_accumulator = mmr.get_accumulator().await.unwrap();
-      assert!(proof.verify(old_accumulator, &new_accumulator).unwrap());
+      assert!(proof.verify(&old_accumulator, &new_accumulator).unwrap());
     }
   }
 }

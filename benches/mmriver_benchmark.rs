@@ -130,7 +130,7 @@ fn bench(c: &mut Criterion) {
     });
     b.iter(|| {
       let (_pos, proof, leaf_hash) = proofs.choose(&mut rng).unwrap();
-      proof.verify(leaf_hash.clone(), &accumulator).unwrap();
+      proof.verify(leaf_hash.clone(), &accumulator).unwrap()
     });
   });
 
@@ -183,7 +183,7 @@ fn bench(c: &mut Criterion) {
     let mut rng = thread_rng();
     b.iter(|| {
       let (old_acc, proof) = proofs.choose(&mut rng).unwrap();
-      proof.verify(old_acc, &new_accumulator).unwrap();
+      proof.verify(old_acc, &new_accumulator).unwrap()
     });
   });
 

@@ -118,7 +118,7 @@ fn bench(c: &mut Criterion) {
     });
     b.iter(|| {
       let (pos, elem, proof) = proofs.choose(&mut rng).unwrap();
-      proof.verify(&root, vec![(**pos, elem.clone())]).unwrap();
+      proof.verify(&root, vec![(**pos, elem.clone())]).unwrap()
     });
   });
 }
