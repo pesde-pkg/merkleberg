@@ -159,7 +159,7 @@ fn bench(c: &mut Criterion) {
     let new_accumulator: Vec<NumberHash> =
       RT.block_on(async { mmr.get_accumulator().await.unwrap() });
 
-    let old_sizes: [u64; _] = [7, 15, 31, 255, 1023, 4095, 16383];
+    let old_sizes: [u64; 7] = [7, 15, 31, 255, 1023, 4095, 16383];
 
     let proofs: Vec<_> = {
       let mut results = Vec::new();

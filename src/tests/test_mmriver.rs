@@ -328,7 +328,7 @@ cfg_if::cfg_if! {
   if #[cfg(all(feature = "digest", not(feature = "unsafe-digest")))] {
     use crate::merge::DigestMerge;
     use digest::Output;
-    use sha2::{Digest, Sha256};
+    use sha2::{Digest as _, Sha256};
 
     #[tokio::test]
     async fn test_domain_separation_leaf_prefix() {

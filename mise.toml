@@ -9,8 +9,14 @@ RUSTC_WRAPPER = "{% if os() != 'windows' %}sccache{% endif %}"
 description = "Run checks for formatting and linting"
 shell = "bash -c"
 run = [
-  "cargo fmt --check",
-  'F={{option(name="features")}} T={{option(name="target")}} cargo clippy --locked ${F:+--features "$F"} ${T:+--target "$T"}',
+    "cargo fmt --check",
+    """F={{option(name="features")}} T={{option(name="target")}} cargo clippy \
+        --locked \
+        --all-targets \
+        --no-default-features \
+        ${F:+--features "$F"} \
+        ${T:+--target "$T"}
+    """,
 ]
 
 [tasks.test]
