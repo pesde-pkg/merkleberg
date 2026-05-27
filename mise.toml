@@ -6,43 +6,43 @@ sccache = "0.15.0"
 RUSTC_WRAPPER = "{% if os() != 'windows' %}sccache{% endif %}"
 
 [tasks.check]
-description = "Run checks for formatting and linting (ensures locked and all features)"
+description = "Run checks for formatting and linting"
 shell = "bash -c"
 run = [
   "cargo fmt --check",
-  'CARGO_TARGET={{option(name="target")}} cargo clippy --locked --all-features ${CARGO_TARGET:+--features "$CARGO_TARGET"}',
+  'F={{option(name="features")}} T={{option(name="target")}} cargo clippy --locked ${F:+--features "$F"} ${T:+--target "$T"}',
 ]
 
 [tasks.test]
-description = "Run integration, doc, and other tests (ensures locked and all features)"
+description = "Run integration, doc, and other tests"
 shell = "bash -c"
 run = """
-CARGO_TARGET={{option(name="target")}} cargo test \
+F={{option(name="features")}} T={{option(name="target")}} cargo test \
     --locked \
-    --all-features \
-    ${CARGO_TARGET:+--features "$CARGO_TARGET"} \
+    ${F:+--features "$F"} \
+    ${T:+--target "$T"} \
     {{arg(name="test_name", var = true, default = "")}}
 """
 
 [tasks.bench]
-description = "Run benchmarks (ensures locked and all features)"
+description = "Run benchmarks"
 shell = "bash -c"
 run = """
-CARGO_TARGET={{option(name="target")}} cargo bench \
+F={{option(name="features")}} T={{option(name="target")}} cargo bench \
     --locked \
-    --all-features \
-    ${CARGO_TARGET:+--features "$CARGO_TARGET"} \
+    ${F:+--features "$F"} \
+    ${T:+--target "$T"} \
     {{arg(name="bench_name", var = true, default = "")}}
 """
 
 [tasks.build]
-description = "Build with release optimatizations (ensures locked all features)"
+description = "Build with release optimizations"
 shell = "bash -c"
 run = """
-CARGO_TARGET={{option(name="target")}} cargo build \
+F={{option(name="features")}} T={{option(name="target")}} cargo build \
     --locked \
-    --all-features \
-    ${CARGO_TARGET:+--features "$CARGO_TARGET"}
+    ${F:+--features "$F"} \
+    ${T:+--target "$T"}
 """
 
 [settings]

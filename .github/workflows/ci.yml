@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
+        platform:
           - runner: Linux x86_64
             image: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -46,9 +46,15 @@ jobs:
           - runner: Windows aarch64
             image: windows-11-arm
             target: aarch64-pc-windows-msvc
+        
+        features:
+          - ""
+          - "std,digest,serde"
+          - "std,digest,unsafe-digest"
+          - "std,digest,unsafe-digest,serde"
 
-    name: CI - ${{ matrix.runner }}
-    runs-on: ${{ matrix.image }}
+    name: CI - ${{ matrix.platform.runner }}${{ matrix.features != '' && format(' ({0})', matrix.features) || '' }}
+    runs-on: ${{ matrix.platform.image }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -91,13 +97,13 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Run checks (formatting and linting)
-        run: mise run check --target ${{ matrix.target }}
+        run: mise run check --target "${{ matrix.platform.target }}" --features "${{ matrix.features }}"
 
       - name: Run tests
-        run: mise run test --target ${{ matrix.target }}
+        run: mise run test --target "${{ matrix.platform.target }}" --features "${{ matrix.features }}"
 
       - name: Build
-        run: mise run build --target ${{ matrix.target }}
+        run: mise run build --target "${{ matrix.platform.target }}" --features "${{ matrix.features }}"
 
       - name: Run sccache stat for check
         if: always()
