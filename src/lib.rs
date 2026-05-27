@@ -17,7 +17,7 @@ pub use helper::{
 };
 pub use merge::Merge;
 pub use mmr::MMR;
-pub use mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
+pub use mmr_store::{MMRBatch, MMRStoreReadOps, MMRStoreWriteOps};
 pub use mmriver::{MMRIVER, included_root};
 
 #[cfg(feature = "digest")]
