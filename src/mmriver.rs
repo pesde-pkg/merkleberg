@@ -57,7 +57,7 @@
 //!     let consistency_proof = mmriver.gen_consistency_proof(old_size).await?;
 //!
 //!     // Verify old accumulator is consistent with new accumulator
-//!     let is_consistent = consistency_proof.verify(old_accumulator, &new_accumulator)?;
+//!     let is_consistent = consistency_proof.verify(&old_accumulator, &new_accumulator)?;
 //!     assert!(is_consistent);
 //!
 //!     Ok(())

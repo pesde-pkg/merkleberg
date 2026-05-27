@@ -37,7 +37,7 @@
 //!
 //!     // Verify the proof against the root
 //!     let leaf_hash = DigestMerge::<Sha256>::leaf_hash(b"first")?;
-//!     let is_valid = proof.verify(root, vec![(pos0, leaf_hash)])?;
+//!     let is_valid = proof.verify(&root, vec![(pos0, leaf_hash)])?;
 //!
 //!     assert!(is_valid);
 //!     Ok(())

@@ -8,47 +8,66 @@ RUSTC_WRAPPER = "{% if os() != 'windows' %}sccache{% endif %}"
 [tasks.check]
 description = "Run checks for formatting and linting"
 shell = "bash -c"
-run = [
-    "cargo fmt --check",
-    """F={{option(name="features")}} T={{option(name="target")}} cargo clippy \
+usage = """
+flag "--target <target>"
+flag "--features <features>" default="default"
+"""
+run = ["cargo fmt --check", """
+    cargo clippy \
         --locked \
         --all-targets \
         --no-default-features \
-        ${F:+--features "$F"} \
-        ${T:+--target "$T"}
-    """,
-]
+        ${usage_features:+--features "$usage_features"} \
+        ${usage_target:+--target "$usage_target"}
+    """]
 
 [tasks.test]
 description = "Run integration, doc, and other tests"
 shell = "bash -c"
+usage = """
+flag "--target <target>"
+flag "--features <features>" default="default"
+arg "[test_name]" var=#true
+"""
 run = """
-F={{option(name="features")}} T={{option(name="target")}} cargo test \
+cargo test \
     --locked \
-    ${F:+--features "$F"} \
-    ${T:+--target "$T"} \
-    {{arg(name="test_name", var = true, default = "")}}
+    --no-default-features \
+    ${usage_features:+--features "$usage_features"} \
+    ${usage_target:+--target "$usage_target"} \
+    ${usage_test_name:-}
 """
 
 [tasks.bench]
 description = "Run benchmarks"
 shell = "bash -c"
+usage = """
+flag "--target <target>"
+flag "--features <features>" default="default"
+arg "[bench_name]" var=#true
+"""
 run = """
-F={{option(name="features")}} T={{option(name="target")}} cargo bench \
+cargo bench \
     --locked \
-    ${F:+--features "$F"} \
-    ${T:+--target "$T"} \
-    {{arg(name="bench_name", var = true, default = "")}}
+    --no-default-features \
+    ${usage_features:+--features "$usage_features"} \
+    ${usage_target:+--target "$usage_target"} \
+    ${usage_bench_name:-}
 """
 
 [tasks.build]
 description = "Build with release optimizations"
 shell = "bash -c"
+usage = """
+flag "--target <target>"
+flag "--features <features>" default="default"
+"""
 run = """
-F={{option(name="features")}} T={{option(name="target")}} cargo build \
+cargo build \
     --locked \
-    ${F:+--features "$F"} \
-    ${T:+--target "$T"}
+    --no-default-features \
+    ${usage_features:+--features "$usage_features"} \
+    ${usage_target:+--target "$usage_target"}
 """
 
 [settings]
