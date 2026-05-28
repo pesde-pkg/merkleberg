@@ -66,6 +66,10 @@ jobs:
           install: true
           cache: false # FIXME: caching breaks rustfmt installation for some reason
 
+      - name: Install Rust target (macOS x86_64)
+        if: ${{ matrix.platform.target == 'x86_64-apple-darwin' }}
+        run: rustup target add x86_64-apple-darwin
+
       - name: Configure sccache
         uses: actions/github-script@v9
         with:
