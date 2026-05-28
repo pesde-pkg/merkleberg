@@ -7,7 +7,7 @@ mod merge;
 pub mod mmr;
 mod mmr_store;
 pub mod mmriver;
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests;
 pub mod util;
 
@@ -40,9 +40,9 @@ cfg_if::cfg_if! {
     use alloc::borrow;
     use alloc::boxed::Box;
     use alloc::collections;
-    use alloc::sync::{Arc, RwLock};
+    use alloc::sync::Arc;
     use alloc::vec;
-    use alloc::string;
     use core::mem;
+    use spin::RwLock;
   }
 }

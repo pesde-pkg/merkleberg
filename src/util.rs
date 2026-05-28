@@ -10,6 +10,24 @@ use crate::vec::Vec;
 use crate::{Arc, RwLock};
 use core::convert::Infallible;
 
+cfg_if::cfg_if! {
+  if #[cfg(feature = "std")] {
+    macro_rules! read_guard {
+      ($lock:expr) => { $lock.read().unwrap() }
+    }
+    macro_rules! write_guard {
+      ($lock:expr) => { $lock.write().unwrap() }
+    }
+  } else {
+    macro_rules! read_guard {
+      ($lock:expr) => { $lock.read() }
+    }
+    macro_rules! write_guard {
+      ($lock:expr) => { $lock.write() }
+    }
+  }
+}
+
 /// In-memory storage backend for MMR.
 ///
 /// Simple `BTreeMap`-based store using `RwLock` for thread safety.
@@ -39,14 +57,14 @@ impl<T: Clone + Send + Sync> MMRStoreReadOps<T> for MemStore<T> {
   type Error = Infallible;
 
   async fn get_elem(&self, pos: u64) -> Result<Option<T>, Self::Error> {
-    Ok(self.0.read().unwrap().get(&pos).cloned())
+    Ok(read_guard!(self.0).get(&pos).cloned())
   }
 
   async fn get_elems(
     &self,
     positions: impl Iterator<Item = u64> + Send,
   ) -> Result<Vec<Option<T>>, Self::Error> {
-    let store = self.0.read().unwrap();
+    let store = read_guard!(self.0);
     Ok(positions.map(|pos| store.get(&pos).cloned()).collect())
   }
 }
@@ -59,7 +77,7 @@ impl<T: Send + Sync> MMRStoreWriteOps<T> for MemStore<T> {
     pos: u64,
     elems: Vec<T>,
   ) -> Result<(), Self::Error> {
-    let mut store = self.0.write().unwrap();
+    let mut store = write_guard!(self.0);
     for (i, elem) in elems.into_iter().enumerate() {
       store.insert(pos + i as u64, elem);
     }
