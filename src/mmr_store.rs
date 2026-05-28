@@ -41,6 +41,15 @@ impl<Elem, Store> MMRBatch<Elem, Store> {
   pub fn store(&self) -> &Store {
     &self.store
   }
+
+  /// Consume the batch, returning the backed store.
+  ///
+  /// Make sure to commit all the changes to the store first before
+  /// calling this method to ensure changes in the batch queue are not
+  /// discarded unexpectedly.
+  pub fn into_store(self) -> Store {
+    self.store
+  }
 }
 
 impl<Elem: Clone + Send + Sync, Store: MMRStoreReadOps<Elem>>
