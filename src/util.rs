@@ -7,8 +7,8 @@ use crate::collections::BTreeMap;
 use crate::merge::Merge;
 use crate::mmr_store::{MMRStoreReadOps, MMRStoreWriteOps};
 use crate::vec::Vec;
+use crate::{Arc, RwLock};
 use core::convert::Infallible;
-use std::sync::{Arc, RwLock};
 
 /// In-memory storage backend for MMR.
 ///

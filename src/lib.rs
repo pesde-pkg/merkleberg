@@ -33,14 +33,16 @@ cfg_if::cfg_if! {
     use std::boxed::Box;
     use std::collections;
     use std::mem;
+    use std::sync::{Arc, RwLock};
     use std::vec;
   } else {
     extern crate alloc;
     use alloc::borrow;
     use alloc::boxed::Box;
     use alloc::collections;
-    use core::mem;
+    use alloc::sync::{Arc, RwLock};
     use alloc::vec;
     use alloc::string;
+    use core::mem;
   }
 }
