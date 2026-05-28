@@ -19,11 +19,9 @@ async fn test_incremental_with_params(start: u32, steps: usize, turns: usize) {
 
   let mut curr: u32 = 0;
 
-  let mut positions: Vec<u64> = Vec::new();
   for _ in 0u32..start {
-    let pos = mmr.push(&curr.to_le_bytes()).await.unwrap();
+    mmr.push(&curr.to_le_bytes()).await.unwrap();
     curr += 1;
-    positions.push(pos);
   }
   mmr.commit().await.expect("commit changes");
 

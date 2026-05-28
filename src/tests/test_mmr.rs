@@ -214,10 +214,8 @@ async fn test_invalid_proof_verification(
 
   let store = MemStore::default();
   let mut mmr = MemMMR::<MyMerge>::new(0, store);
-  let mut positions: Vec<u64> = Vec::new();
   for i in 0u32..leaf_count {
-    let pos = mmr.push(&i.to_le_bytes()).await.unwrap();
-    positions.push(pos);
+    mmr.push(&i.to_le_bytes()).await.unwrap();
   }
   let root = mmr.get_root().await.unwrap();
 
