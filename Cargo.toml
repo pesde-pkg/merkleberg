@@ -48,6 +48,14 @@ harness = false
 name = "mmriver_benchmark"
 harness = false
 
+[[example]]
+name = "mmr_basic"
+required-features = ["std", "digest"]
+
+[[example]]
+name = "mmriver_basic"
+required-features = ["std", "digest"]
+
 [lints.clippy]
 zero_sized_map_values = "warn"
 while_float = "deny"

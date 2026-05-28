@@ -12,57 +12,10 @@
 //! Consistency proofs show that old headers are included in new state.
 //!
 //! ## Usage
-//!
-//! ```rust
-//! use merkleberg::{MMRIVER, Merge, DigestMerge, util::{MemMMRIVER, MemStore}};
-//! use sha2::Sha256;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create MMRIVER with SHA-256 hashing
-//!     let store = MemStore::default();
-//!     let mut mmriver: MemMMRIVER<DigestMerge<Sha256>> = MMRIVER::new(0, store);
-//!
-//!     // Add elements
-//!     for i in 0u64..10 {
-//!         mmriver.push(&i.to_be_bytes()).await?;
-//!     }
-//!     mmriver.commit().await?;
-//!
-//!     // Get the accumulator (list of peaks) - unique to MMRIVER
-//!     let accumulator = mmriver.get_accumulator().await?;
-//!     
-//!     // Generate inclusion proof for leaf at node index 0
-//!     let proof = mmriver.gen_inclusion_proof(0).await?;
-//!     
-//!     // Compute leaf hash for verification
-//!     let leaf_hash = DigestMerge::<Sha256>::leaf_hash(&0u64.to_be_bytes())?;
-//!     
-//!     // Verify against the accumulator
-//!     let is_valid = proof.verify(leaf_hash, &accumulator)?;
-//!     assert!(is_valid);
-//!
-//!     // Save state for consistency proof demonstration
-//!     let old_size = mmriver.mmr_size();
-//!     let old_accumulator = accumulator;
-//!
-//!     // Add more elements
-//!     for i in 10u64..20 {
-//!         mmriver.push(&i.to_be_bytes()).await?;
-//!     }
-//!     mmriver.commit().await?;
-//!
-//!     // Generate consistency proof showing old state in new state
-//!     let new_accumulator = mmriver.get_accumulator().await?;
-//!     let consistency_proof = mmriver.gen_consistency_proof(old_size).await?;
-//!
-//!     // Verify old accumulator is consistent with new accumulator
-//!     let is_consistent = consistency_proof.verify(&old_accumulator, &new_accumulator)?;
-//!     assert!(is_consistent);
-//!
-//!     Ok(())
-//! }
-//! ```
+#![cfg_attr(
+  all(feature = "std", feature = "digest"),
+  doc = concat!("```rust\n", include_str!("../examples/mmriver_basic.rs"), "\n```")
+)]
 //!
 //! ## References
 //!

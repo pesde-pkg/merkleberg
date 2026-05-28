@@ -11,38 +11,10 @@
 //! these peaks from right to left.
 //!
 //! ## Usage
-//!
-//! ```rust
-//! use merkleberg::{MMR, Merge, DigestMerge, util::{MemStore, MemMMR}};
-//! use sha2::Sha256;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create MMR with SHA-256 hashing and in-memory store
-//!     let store = MemStore::default();
-//!     let mut mmr: MemMMR<DigestMerge<Sha256>> = MMR::new(0, store);
-//!
-//!     // Add elements (positions are returned for later reference)
-//!     let pos0 = mmr.push(b"first").await?;
-//!     let pos1 = mmr.push(b"second").await?;
-//!
-//!     // Persist uncommitted elements to storage
-//!     mmr.commit().await?;
-//!
-//!     // Compute the Merkle root (bagged peaks)
-//!     let root = mmr.get_root().await?;
-//!
-//!     // Generate inclusion proof for the first element
-//!     let proof = mmr.gen_proof(vec![pos0]).await?;
-//!
-//!     // Verify the proof against the root
-//!     let leaf_hash = DigestMerge::<Sha256>::leaf_hash(b"first")?;
-//!     let is_valid = proof.verify(&root, vec![(pos0, leaf_hash)])?;
-//!
-//!     assert!(is_valid);
-//!     Ok(())
-//! }
-//! ```
+#![cfg_attr(
+  all(feature = "std", feature = "digest"),
+  doc = concat!("```rust\n", include_str!("../examples/mmr_basic.rs"), "\n```")
+)]
 //!
 //! ## References
 //!
