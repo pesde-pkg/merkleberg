@@ -232,7 +232,7 @@ let json = serde_json::to_string(&proof)?;
 let decoded: InclusionProof<DigestMerge<Sha256>> = serde_json::from_str(&json)?;
 ```
 
-> [!NOTE]
+> \[!NOTE]
 > The `Item` type of the `Merge` implementation being used must also implement `Serialize` and
 > `Deserialize` for the proofs to implement them. The provided merge implementations already do
 > so.

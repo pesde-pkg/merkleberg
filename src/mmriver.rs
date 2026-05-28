@@ -4,7 +4,7 @@
 //! - Accumulator-based roots (list of peaks, not single hash)
 //! - Consistency proofs between tree states
 //!
-//! Unlike standard [`MMR`] which bags peaks into a single root, MMRIVER
+//! Unlike standard [`crate::MMR`] which bags peaks into a single root, MMRIVER
 //! keeps peaks as a list (accumulator). This enables:
 //! - Verification of individual peak membership
 //! - Consistency proofs showing tree evolution

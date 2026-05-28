@@ -64,7 +64,7 @@ pub trait Merge {
 
   /// Error type for merge operations.
   ///
-  /// For infallible implementations (like `DigestMerge`), use [`Infallible`].
+  /// For infallible implementations (like `DigestMerge`), use [`core::convert::Infallible`].
   type Error: Error + Send + Sync + 'static;
 
   /// Hash a leaf from raw data.

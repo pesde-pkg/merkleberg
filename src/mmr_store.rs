@@ -4,7 +4,7 @@ use core::future::Future;
 
 /// Batch of uncommitted MMR elements.
 ///
-/// Elements added via [`push`] are buffered into memory until [`commit`]
+/// Elements added via `push` are buffered into memory until `commit`
 /// is called.
 ///
 /// Useful since individual writes need to hold an exclusive lock for a
