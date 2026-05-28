@@ -1,4 +1,4 @@
-use core::{convert::Infallible, error::Error};
+use core::error::Error;
 
 /// Trait for defining hash operations in an MMR.
 ///
@@ -136,7 +136,7 @@ cfg_if::cfg_if! {
 
     impl<H: Digest> Merge for DigestMerge<H> {
       type Item = digest::Output<H>;
-      type Error = Infallible;
+      type Error = core::convert::Infallible;
 
       fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
         let mut hasher = H::new();
@@ -179,7 +179,7 @@ cfg_if::cfg_if! {
     #[allow(deprecated)]
     impl<H: digest::Digest> Merge for DigestMergeUnsafe<H> {
       type Item = digest::Output<H>;
-      type Error = Infallible;
+      type Error = core::convert::Infallible;
 
       fn leaf_hash(data: &[u8]) -> Result<Self::Item, Self::Error> {
         let mut hasher = H::new();

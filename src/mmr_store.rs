@@ -1,4 +1,4 @@
-use crate::vec::Vec;
+use crate::{vec, vec::Vec};
 use core::error::Error;
 use core::future::Future;
 

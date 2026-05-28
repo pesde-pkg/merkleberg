@@ -30,12 +30,16 @@ pub use merge::DigestMergeUnsafe;
 cfg_if::cfg_if! {
   if #[cfg(feature = "std")] {
     use std::borrow;
+    use std::boxed::Box;
     use std::collections;
+    use std::mem;
     use std::vec;
   } else {
     extern crate alloc;
     use alloc::borrow;
+    use alloc::boxed::Box;
     use alloc::collections;
+    use core::mem;
     use alloc::vec;
     use alloc::string;
   }

@@ -2,7 +2,7 @@
 ///
 /// Store and merge errors are boxed to enable error propagation
 /// across different error types.
-pub type UserError = Box<dyn core::error::Error + Send + Sync + 'static>;
+pub type UserError = crate::Box<dyn core::error::Error + Send + Sync + 'static>;
 
 /// Result type for MMR operations.
 pub type Result<T> = core::result::Result<T, Error>;
@@ -60,7 +60,7 @@ impl PartialEq for Error {
     match (self, other) {
       (Error::StoreError(_), Error::StoreError(_)) => false,
       (Error::MergeError(_), Error::MergeError(_)) => false,
-      _ => std::mem::discriminant(self) == std::mem::discriminant(other),
+      _ => crate::mem::discriminant(self) == crate::mem::discriminant(other),
     }
   }
 }
