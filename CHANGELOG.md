@@ -34,4 +34,5 @@ Initial library release.
 
 [unreleased]: https://github.com/pesde-pkg/merkleberg/commits/HEAD
 [0.1.0]: https://crates.io/crates/merkleberg/0.1.0
-[0.2.0]: https://crates.io/crates/merkleberg/0.20
+[0.2.0]: https://crates.io/crates/merkleberg/0.2.0
+[0.2.1]: https://crates.io/crates/merkleberg/0.2.1
