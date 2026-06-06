@@ -102,6 +102,11 @@ impl<M: Merge, S> MMR<M, S> {
   pub fn store(&self) -> &S {
     self.batch.store()
   }
+
+  /// Consume the MMR, returning the backed store.
+  pub fn into_store(self) -> S {
+    self.batch.into_store()
+  }
 }
 
 impl<M: Merge, S: MMRStoreReadOps<M::Item>> MMR<M, S>
