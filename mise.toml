@@ -1,6 +1,6 @@
 [tools]
 rust = { version = "1.85.0", profile = "default", components = "rustfmt,rust-src,rust-analyzer" }
-"github:mozilla/sccache" = { version = "0.15.0" }
+"github:mozilla/sccache" = { version = "0.15.0", asset_pattern = "sccache-v*" }
 
 [env]
 RUSTC_WRAPPER = "{% if os() != 'windows' %}sccache{% endif %}"
