@@ -128,10 +128,12 @@ jobs:
               'm',
             ));
 
+            const footer = `**Get it at [crates.io](https://crates.io/crates/merkleberg/${VERSION})**.`;
+
             await github.rest.repos.createRelease({
               ...context.repo,
               tag_name: tag,
               name: tag,
-              body: notes.trim(),
+              body: [notes.trim(), footer].join('\n\n'),
               prerelease: PRERELEASE === 'true',
             });
