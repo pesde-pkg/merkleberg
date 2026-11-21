@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-21
+
+### Fixed
+
+- Integer underflow when generating `MMRIVER` inclusion proofs for right leaves,
+  causing panics in builds with overflow checks enabled (primarily debug builds) 
+
 ## [0.2.1] - 2025-06-06
 
 ### Added
@@ -36,3 +43,4 @@ Initial library release.
 [0.1.0]: https://crates.io/crates/merkleberg/0.1.0
 [0.2.0]: https://crates.io/crates/merkleberg/0.2.0
 [0.2.1]: https://crates.io/crates/merkleberg/0.2.1
+[0.2.2]: https://crates.io/crates/merkleberg/0.2.2
