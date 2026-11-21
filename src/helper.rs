@@ -249,7 +249,7 @@ pub fn inclusion_proof_path(mut i: u64, c: u64) -> Vec<u64> {
     let sibling_offset = 2 << g;
 
     if index_height_mmriver(i + 1) > g {
-      let isibling = i - sibling_offset + 1;
+      let isibling = i + 1 - sibling_offset;
       i += 1;
       if isibling > c {
         return path;
