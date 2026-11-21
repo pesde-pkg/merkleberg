@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.2] - 2026-11-21
 
+### Added
+
+- GitHub releases now ship a package `.crate` file along with build provenance 
+  attestation and are immutable after being published. Verify using:
+
+  `gh attestation verify merkleberg-0.2.2.crate --repo pesde-pkg/merkleberg`
+
 ### Fixed
 
 - Integer underflow when generating `MMRIVER` inclusion proofs for right leaves,
