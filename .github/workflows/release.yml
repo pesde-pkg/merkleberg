@@ -72,7 +72,9 @@ jobs:
     needs: [verify, ci]
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
+      attestations: write
     environment:
       name: crates-io
       url: https://crates.io/crates/merkleberg/${{ needs.verify.outputs.version }}
@@ -92,12 +94,29 @@ jobs:
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
 
-      - name: Publish
-        run: cargo publish --locked
+      - name: Package crate
+        run: cargo package --locked
         env:
           CARGO_TERM_COLOR: always
           RUSTC_WRAPPER: ""
+
+      - name: Publish
+        run: cargo publish --locked --no-verify
+        env:
+          CARGO_TERM_COLOR: always
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: target/package/merkleberg-${{ needs.verify.outputs.version }}.crate
+
+      - name: Upload crate artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: crate
+          path: target/package/merkleberg-${{ needs.verify.outputs.version }}.crate
+          if-no-files-found: error
 
   github-release:
     name: Create GitHub release
@@ -108,6 +127,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Download crate artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: crate
 
       - name: Create release
         uses: actions/github-script@v9
@@ -130,10 +154,29 @@ jobs:
 
             const footer = `**Get it at [crates.io](https://crates.io/crates/merkleberg/${VERSION})**.`;
 
-            await github.rest.repos.createRelease({
+            // Create a draft release which we can attach assets to
+            const { data: release } = await github.rest.repos.createRelease({
               ...context.repo,
               tag_name: tag,
               name: tag,
               body: [notes.trim(), footer].join('\n\n'),
               prerelease: PRERELEASE === 'true',
+              draft: true,
+            });
+
+            // Attach the crate artifact
+            const crate = `merkleberg-${VERSION}.crate`;
+            await github.rest.repos.uploadReleaseAsset({
+              ...context.repo,
+              release_id: release.id,
+              name: crate,
+              data: fs.readFileSync(crate),
+              headers: { 'content-type': 'application/gzip' },
+            });
+
+            // Publish the release
+            await github.rest.repos.updateRelease({
+              ...context.repo,
+              release_id: release.id,
+              draft: false,
             });
